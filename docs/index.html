@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>London Flat Finder</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="style.css?v=4">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+</head>
+<body>
+<header>
+  <h1>🏠 London Flat Finder</h1>
+  <p id="meta"></p>
+  <nav id="tabs">
+    <button class="tab active" data-tab="all">All flats</button>
+    <button class="tab" data-tab="liked">❤️ Liked</button>
+    <select id="likedBy" hidden>
+      <option value="any">Liked by anyone</option>
+      <option value="Rehan">Liked by Rehan</option>
+      <option value="Clara">Liked by Clara</option>
+      <option value="both">Liked by both</option>
+    </select>
+  </nav>
+  <div class="filters">
+    <span class="group">
+      <label class="chk">move-in from <input type="date" id="from"></label>
+      <label class="chk">to <input type="date" id="to" title="Leave empty for no end date"></label>
+    </span>
+    <span class="group">
+      <label class="chk">£ <input type="number" id="pmin" placeholder="min" min="0" step="50"></label>
+      <label class="chk">– <input type="number" id="pmax" placeholder="max" min="0" step="50"></label>
+    </span>
+    <select id="beds">
+      <option value="2" selected>2 beds</option>
+      <option value="1">1 bed</option>
+      <option value="3">3+ beds</option>
+      <option value="any">Any beds</option>
+    </select>
+    <select id="furnished">
+      <option value="any">Furnished or not</option>
+      <option value="furnished">Furnished</option>
+      <option value="unfurnished">Unfurnished</option>
+    </select>
+    <span class="group" title="Tick to require; none ticked = show all">
+      <label class="chk"><input type="checkbox" id="fBalcony"> balcony</label>
+      <label class="chk"><input type="checkbox" id="fGarden"> garden</label>
+      <label class="chk"><input type="checkbox" id="fLiving"> living room</label>
+    </span>
+    <span class="group" id="zones">
+      zones
+      <label class="chk"><input type="checkbox" value="1" checked> 1</label>
+      <label class="chk"><input type="checkbox" value="2" checked> 2</label>
+      <label class="chk"><input type="checkbox" value="3" checked> 3</label>
+      <label class="chk"><input type="checkbox" value="4" checked> 4</label>
+      <label class="chk"><input type="checkbox" value="5" checked> 5</label>
+      <label class="chk"><input type="checkbox" value="6" checked> 6</label>
+    </span>
+    <select id="stationMax">
+      <option value="any">Any station distance</option>
+      <option value="0.5">≤ 500 m to a station</option>
+      <option value="0.8">≤ 800 m to a station</option>
+      <option value="1.2">≤ 1.2 km to a station</option>
+    </select>
+    <span class="group" title="Estimated door-to-door times">
+      <select id="ttDest">
+        <option value="">Travel time to…</option>
+        <option value="Waterloo">Waterloo</option>
+        <option value="St Thomas'">St Thomas' Hospital</option>
+        <option value="King's Cross">King's Cross</option>
+        <option value="Liverpool St">Liverpool St</option>
+      </select>
+      <select id="ttMode">
+        <option value="bike">by bike</option>
+        <option value="pt">by public transport</option>
+        <option value="walk">walking</option>
+      </select>
+      <label class="chk">≤ <input type="number" id="ttMax" placeholder="min" min="5" step="5" style="width:3.4rem"> min</label>
+    </span>
+    <label class="chk"><input type="checkbox" id="showTT"> show travel times</label>
+    <label class="chk"><input type="checkbox" id="availOnly" checked> available only</label>
+    <select id="likedFilter" hidden>
+      <option value="any">Liked or not</option>
+      <option value="liked">Liked by anyone</option>
+      <option value="unliked">Not liked yet</option>
+    </select>
+    <select id="epcMin" hidden>
+      <option value="any">Any EPC</option>
+      <option value="C">EPC C or better</option>
+      <option value="B">EPC B or better</option>
+    </select>
+    <select id="sort">
+      <option value="num">Sort: number</option>
+      <option value="priceAsc">Sort: price low → high</option>
+      <option value="priceDesc">Sort: price high → low</option>
+      <option value="available">Sort: move-in date</option>
+      <option value="station">Sort: closest to station</option>
+      <option value="zone">Sort: most central</option>
+    </select>
+    <button id="viewToggle">🗺 Map</button>
+  </div>
+  <p id="count"></p>
+</header>
+
+<div id="map" hidden style="min-height:440px"></div>
+<main id="grid"></main>
+<p id="empty" hidden>Nothing matches these filters.</p>
+
+<dialog id="whoDialog">
+  <h2>Who's liking this?</h2>
+  <menu>
+    <button data-who="Rehan">Rehan</button>
+    <button data-who="Clara">Clara</button>
+  </menu>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="app.js?v=4"></script>
+</body>
+</html>
