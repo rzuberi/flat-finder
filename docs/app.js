@@ -325,8 +325,8 @@ document.querySelectorAll("#whoDialog button").forEach((b) =>
   $("#from").value = start;
   $("#to").value = end;
   // these controls only appear once the data actually carries the fields
-  if (!data.listings.some((l) => l.furnished)) $("#furnished").hidden = true;
-  if (!data.listings.some((l) => l.epc)) $("#epcMin").hidden = true;
+  $("#furnished").hidden = !data.listings.some((l) => l.furnished);
+  $("#epcMin").hidden = !data.listings.some((l) => l.epc);
   render();
   if (sb) setInterval(async () => { await loadLikes(); render(true); }, 60_000);
 })();
