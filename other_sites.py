@@ -18,7 +18,7 @@ RM_BASE = ("https://www.rightmove.co.uk/property-to-rent/find.html"
            "?locationIdentifier=REGION%5E87490&propertyTypes=flat"
            "&includeLetAgreed=false&sortType=6")
 OR_BASE = ("https://www.openrent.co.uk/properties-to-rent/london"
-           "?term=London&bedrooms_min=1")
+           "?term=London")
 DELAY = 2.0
 RM_CAP = 950          # rightmove stops serving past ~1000 results per search
 SHARE_WORDS = re.compile(r"\b(room in|double room|single room|house ?share|flat ?share|shared (house|flat|accommodation)|studio room)\b", re.I)
@@ -89,8 +89,13 @@ def collect_rightmove(max_price: int) -> list[dict]:
         if p.get("commercial") or p.get("development") or p.get("students"):
             continue
         text = f"{p.get('propertyTypeFullDescription','')} {p.get('summary','')}"
-        if SHARE_WORDS.search(text) or not p.get("bedrooms"):
+        if SHARE_WORDS.search(text):
             continue
+        beds = p.get("bedrooms")
+        if not beds:
+            if (p.get("propertySubType") or "").lower() != "studio":
+                continue
+            beds = 0
         price = p.get("price") or {}
         pcm = price.get("amount") if price.get("frequency") == "monthly" else None
         if not pcm or pcm > max_price:
@@ -111,7 +116,7 @@ def collect_rightmove(max_price: int) -> list[dict]:
             "address": p.get("displayAddress", ""),
             "price": f"£{pcm:,.0f} pcm".replace(".0", ""),
             "price_num": round(pcm),
-            "beds": p.get("bedrooms"),
+            "beds": beds,
             "baths": p.get("bathrooms"),
             "receptions": None,
             "lat": loc.get("latitude"),
@@ -158,8 +163,9 @@ def collect_openrent(max_price: int) -> list[dict]:
                 continue
             title = p.get("title", "")
             bm = re.match(r"(\d+) Bed", title)
-            if not bm or "Studio" in title:
+            if not bm and not title.startswith("Studio"):
                 continue
+            beds = int(bm.group(1)) if bm else 0
             details = p.get("details") or []
             pcm = p.get("rentPerMonth")
             if not pcm or pcm > max_price:
@@ -178,7 +184,7 @@ def collect_openrent(max_price: int) -> list[dict]:
                 "address": title.split(", ", 1)[-1],
                 "price": f"£{pcm:,.0f} pcm",
                 "price_num": round(pcm),
-                "beds": int(bm.group(1)),
+                "beds": beds,
                 "baths": next((int(x[0]) for x in details if "Bath" in x), None),
                 "receptions": None,
                 "lat": lat,

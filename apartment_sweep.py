@@ -20,14 +20,14 @@ from pathlib import Path
 from curl_cffi import requests
 
 # ---- config ----------------------------------------------------------------
-MAX_PRICE = 3000          # pcm
+MAX_PRICE = 4000          # pcm
 MIN_BEDS = 1
 WINDOW_START = date(2026, 9, 25)   # earliest acceptable move-in
 WINDOW_END = date(2026, 11, 30)    # latest acceptable move-in
 MAX_ZONE = 6              # approximate TfL zone cutoff (listings beyond are dropped)
 BASE = (
-    "https://www.zoopla.co.uk/to-rent/flats/london/"
-    f"?beds_min={MIN_BEDS}&price_frequency=per_month"
+    "https://www.zoopla.co.uk/to-rent/property/london/"
+    "?price_frequency=per_month&property_sub_type=flats&property_sub_type=studio"
 )
 # Zoopla caps pagination around 1000 results; bands above this get split.
 BAND_CAP = 900
@@ -152,8 +152,22 @@ def parse_price_pcm(price_str: str, beds) -> float | None:
     if unit in ("pw", "pppw"):
         val = val * 52 / 12
     if unit in ("pppm", "pppw"):
-        val = val * (beds if isinstance(beds, int) else 1)
+        val = val * (beds if isinstance(beds, int) and beds > 0 else 1)
     return round(val)
+
+
+def extract_epc(listing_id: str, html: str | None) -> str:
+    """EPC rating letter from a detail page; each site marks it differently."""
+    if not html:
+        return ""
+    if listing_id.startswith("or"):
+        m = re.search(r"EPC Rating</td>\s*<td>([A-G])", html)
+    elif listing_id.startswith("rm"):
+        m = (re.search(r"(?i)EPC\s*Rating[^A-Za-z0-9]{0,6}([A-G])\b", html)
+             or re.search(r'epcRating\\?":\\?"([A-G])', html))
+    else:
+        m = re.search(r'epcRating\\?":\\?"([A-G])', html)
+    return m.group(1) if m else ""
 
 
 def parse_available(raw: str) -> date | None:
@@ -269,7 +283,7 @@ def main() -> None:
             "address": lst.get("address", ""),
             "price": lst.get("price", ""),
             "price_num": price_pcm,
-            "beds": feats.get("bed", "?"),
+            "beds": feats.get("bed") or 0,
             "baths": feats.get("bath"),
             "receptions": feats.get("chair"),
             "zone": zone,
@@ -374,8 +388,7 @@ def main() -> None:
                 html = fetch(m["url"])
             except RuntimeError:
                 break
-            found = re.search(r'epcRating\\?":\\?"([A-G])', html or "")
-            epc[m["id"]] = found.group(1) if found else ""
+            epc[m["id"]] = extract_epc(m["id"], html)
         epc_file.write_text(json.dumps(epc))
         log(f"EPC cache: {len(epc)} cached, {max(0, len(todo) - 250)} still missing")
     for m in matches:
