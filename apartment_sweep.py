@@ -41,7 +41,7 @@ TAG_SEARCHES = {
 OUTDOOR_TAGS = ("balcony/terrace", "garden")
 EXCLUDE_TAGS = {"House share", "Retirement"}
 OUTDOOR_WORDS = re.compile(r"\b(balcon|garden|terrace|patio|roof ?top)", re.I)
-SHARE_WORDS = re.compile(r"\b(room in|double room|single room|house ?share|flat ?share|shared (house|flat|accommodation)|studio room)\b", re.I)
+SHARE_WORDS = re.compile(r"\b(room in|double room|single room|shared room|premium room|en.?suite room|room (available|to rent|share)|house ?share|home ?share|flat ?share|shared (house|flat|accommodation)|multiple occupation|co.?living|lodger|studio room)\b", re.I)
 REQUEST_DELAY = 3.0
 MAX_PAGES = 40
 

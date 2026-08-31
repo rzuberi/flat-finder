@@ -21,7 +21,7 @@ OR_BASE = ("https://www.openrent.co.uk/properties-to-rent/london"
            "?term=London")
 DELAY = 2.0
 RM_CAP = 950          # rightmove stops serving past ~1000 results per search
-SHARE_WORDS = re.compile(r"\b(room in|double room|single room|house ?share|flat ?share|shared (house|flat|accommodation)|studio room)\b", re.I)
+SHARE_WORDS = re.compile(r"\b(room in|double room|single room|shared room|premium room|en.?suite room|room (available|to rent|share)|house ?share|home ?share|flat ?share|shared (house|flat|accommodation)|multiple occupation|co.?living|lodger|studio room)\b", re.I)
 OUTDOOR_BALCONY = re.compile(r"\b(balcon|terrace|roof ?top)", re.I)
 OUTDOOR_GARDEN = re.compile(r"\b(garden|patio)", re.I)
 
@@ -87,6 +87,8 @@ def collect_rightmove(max_price: int) -> list[dict]:
     out = []
     for p in found.values():
         if p.get("commercial") or p.get("development") or p.get("students"):
+            continue
+        if "share" in (p.get("propertySubType") or "").lower():
             continue
         text = f"{p.get('propertyTypeFullDescription','')} {p.get('summary','')}"
         if SHARE_WORDS.search(text):

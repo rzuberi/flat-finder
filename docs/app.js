@@ -138,11 +138,6 @@ function visibleListings() {
   if (epcMin !== "any") ls = ls.filter((l) => l.epc && EPC_ORDER[l.epc] <= EPC_ORDER[epcMin]);
   if (ttDest && ttMax) ls = ls.filter((l) => travelMins(l, ttDest, ttMode) <= ttMax);
 
-  if (tab === "all") {
-    const lf = $("#likedFilter").value;
-    if (lf === "liked") ls = ls.filter((l) => likes[l.id]);
-    if (lf === "unliked") ls = ls.filter((l) => !likes[l.id]);
-  }
   if (tab === "liked") {
     const by = $("#likedBy").value;
     ls = ls.filter((l) => {
@@ -286,7 +281,7 @@ function render(keepShown) {
 
 ["from", "to", "pmin", "pmax", "beds", "furnished", "fBalcony", "fGarden",
  "fLiving", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
- "availOnly", "epcMin", "likedBy", "likedFilter"].forEach((id) =>
+ "availOnly", "epcMin", "likedBy"].forEach((id) =>
   $("#" + id).addEventListener("change", render),
 );
 document.querySelectorAll("#zones input").forEach((c) =>
@@ -319,7 +314,6 @@ document.querySelectorAll("#whoDialog button").forEach((b) =>
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
   if (!sb) document.querySelector('#tabs [data-tab="liked"]').hidden = true;
-  if (sb) $("#likedFilter").hidden = false;
   await Promise.all([loadData(), loadLikes()]);
   const [start, end] = data.criteria.window;
   $("#from").value = start;
