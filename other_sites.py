@@ -138,19 +138,28 @@ def collect_rightmove(max_price: int) -> list[dict]:
 # ---- OpenRent ----------------------------------------------------------------
 
 def collect_openrent(max_price: int) -> list[dict]:
-    html = _get(f"{OR_BASE}&prices_max={max_price}")
-    if not html:
-        return []
-    def arr(name):
-        m = re.search(rf"var {name} = (\[.*?\]);", html, re.S)
-        if not m:
-            return []
-        import ast
-        return ast.literal_eval(re.sub(r",\s*\]", "]", m.group(1)))
-    ids = arr("PROPERTYIDS")
-    lats = arr("PROPERTYLISTLATITUDES")
-    lngs = arr("PROPERTYLISTLONGITUDES")
-    coords = dict(zip(ids, zip(lats, lngs)))
+    # one price band at a time: the all-in-one results page times out at scale
+    ids, coords = [], {}
+    bands = [(0, 1500), (1501, 2200), (2201, 3000), (3001, max_price)]
+    for lo, hi in bands:
+        if lo > max_price:
+            break
+        html = _get(f"{OR_BASE}&prices_min={lo}&prices_max={min(hi, max_price)}")
+        if not html:
+            continue
+        def arr(name):
+            m = re.search(rf"var {name} = (\[.*?\]);", html, re.S)
+            if not m:
+                return []
+            import ast
+            return ast.literal_eval(re.sub(r",\s*\]", "]", m.group(1)))
+        band_ids = arr("PROPERTYIDS")
+        band_coords = dict(zip(band_ids, zip(arr("PROPERTYLISTLATITUDES"), arr("PROPERTYLISTLONGITUDES"))))
+        for x in band_ids:
+            if x not in coords:
+                ids.append(x)
+        coords.update(band_coords)
+        time.sleep(DELAY + random.uniform(0, 1))
     out = []
     for i in range(0, len(ids), 20):
         batch = ids[i:i + 20]

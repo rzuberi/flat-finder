@@ -304,20 +304,22 @@ def main() -> None:
     # ---- Rightmove + OpenRent, deduplicated against Zoopla ----
     import other_sites
     others_file = HERE / "other_sites_raw.json"
-    try:
-        if "--from-cache" in sys.argv and others_file.exists():
-            others = json.loads(others_file.read_text())
-            log(f"other sites (cached): {len(others)}")
-        else:
-            others = other_sites.collect_rightmove(MAX_PRICE)
-            log(f"rightmove: {len(others)}")
-            openrent = other_sites.collect_openrent(MAX_PRICE)
-            log(f"openrent: {len(openrent)}")
-            others += openrent
-            others_file.write_text(json.dumps(others))
-    except Exception as e:
-        log(f"other sites failed ({e}); continuing with Zoopla only")
-        others = json.loads(others_file.read_text()) if others_file.exists() else []
+    cached_others = json.loads(others_file.read_text()) if others_file.exists() else []
+    if "--from-cache" in sys.argv:
+        others = cached_others
+        log(f"other sites (cached): {len(others)}")
+    else:
+        others = []
+        for name, collector in (("Rightmove", other_sites.collect_rightmove),
+                                ("OpenRent", other_sites.collect_openrent)):
+            try:
+                got = collector(MAX_PRICE)
+                log(f"{name.lower()}: {len(got)}")
+            except Exception as e:
+                got = [x for x in cached_others if x["source"] == name]
+                log(f"{name} failed ({e}); reusing {len(got)} cached")
+            others += got
+        others_file.write_text(json.dumps(others))
 
     def same_flat(a, b):
         if a["beds"] != b["beds"] or abs((a["price_num"] or 0) - (b["price_num"] or 0)) > 100:
