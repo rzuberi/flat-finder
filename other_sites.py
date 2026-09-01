@@ -164,10 +164,17 @@ def collect_openrent(max_price: int) -> list[dict]:
     for i in range(0, len(ids), 20):
         batch = ids[i:i + 20]
         qs = "&".join(f"ids={x}" for x in batch)
-        r = requests.get(f"https://www.openrent.co.uk/search/propertiesbyid?{qs}",
-                         impersonate="chrome", timeout=30)
-        if r.status_code != 200:
-            time.sleep(15)
+        r = None
+        for attempt in range(3):
+            try:
+                r = requests.get(f"https://www.openrent.co.uk/search/propertiesbyid?{qs}",
+                                 impersonate="chrome", timeout=30)
+                if r.status_code == 200:
+                    break
+            except Exception:
+                pass
+            time.sleep(15 * (attempt + 1))
+        if r is None or r.status_code != 200:
             continue
         for p in r.json():
             if p.get("letAgreed") or p.get("isMultiRoom"):

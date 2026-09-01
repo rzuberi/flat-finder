@@ -21,13 +21,18 @@ todo = [l for l in data["listings"]
 print(f"{len(todo)} in-window listings missing EPC", flush=True)
 
 done = 0
+fails = 0
 for l in todo:
     time.sleep(3 + random.uniform(0, 1.5))
     try:
         html = fetch(l["url"])
+        fails = 0
     except RuntimeError as e:
-        print(f"stopping at {done}: {e}", flush=True)
-        break
+        fails += 1
+        if fails >= 5:
+            print(f"stopping at {done}: {e}", flush=True)
+            break
+        continue
     epc[l["id"]] = extract_epc(l["id"], html)
     done += 1
     if done % 25 == 0:
