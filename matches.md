@@ -1,7 +1,7 @@
 # Apartment sweep — 2026-09-01
 
 2+ bed flats in London (zones 1–6) ≤ £4000 pcm, available 2026-09-25 to 2026-11-30.
-**4400 matches** (3 new since last run).
+**4400 matches** (0 new since last run).
 
 ### [Endell Street, Covent Garden, London WC2H](https://www.zoopla.co.uk/to-rent/details/47514305/)
 £2,250 pcm · 1 bed · ~zone 1 · available **2026-09-25** — **mentioned in description** · listed 20th Aug 2026
