@@ -1,4 +1,4 @@
-# Apartment sweep — 2026-09-01
+# Apartment sweep — 2026-09-02
 
 2+ bed flats in London (zones 1–6) ≤ £4000 pcm, available 2026-09-25 to 2026-11-30.
 **4400 matches** (0 new since last run).
