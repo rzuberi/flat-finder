@@ -301,7 +301,7 @@ def main() -> None:
         furnished = ("furnished" if lid in tag_ids.get("furnished", ())
                      else "unfurnished" if lid in tag_ids.get("unfurnished", ()) else None)
         feats = {f.get("iconId"): f.get("content") for f in lst.get("features", [])}
-        images = [f"https://lid.zoocdn.com/645/430/{h}" for h in (lst.get("gallery") or [])[:4]]
+        images = [f"https://lid.zoocdn.com/645/430/{h}" for h in (lst.get("gallery") or [])[:3]]
         if not images and (lst.get("image") or {}).get("src"):
             images = [lst["image"]["src"]]
         price_pcm = parse_price_pcm(lst.get("price", ""), feats.get("bed"))
@@ -329,7 +329,7 @@ def main() -> None:
             "furnished": furnished,
             "published": lst.get("publishedOn", ""),
             "url": "https://www.zoopla.co.uk" + lst["listingUris"]["detail"],
-            "summary": (lst.get("summaryDescription") or "")[:220],
+            "summary": (lst.get("summaryDescription") or "")[:180],
             "images": images,
         })
 
@@ -401,6 +401,9 @@ def main() -> None:
             continue
         gone = seen[oid].setdefault("gone_since", today)
         if (date.today() - date.fromisoformat(gone)).days > RETENTION_DAYS:
+            continue
+        # only homes that were relevant (move-in inside the window) are worth keeping
+        if not old.get("in_window"):
             continue
         old["unavailable"] = True
         if old.get("centre_km") is None and old.get("lat") is not None:

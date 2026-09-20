@@ -108,7 +108,7 @@ def collect_rightmove(max_price: int, region: str = "REGION^87490",
         if p.get("letAvailableDate"):
             avail = p["letAvailableDate"][:10]
         loc = p.get("location") or {}
-        imgs = [i["srcUrl"] for i in (p.get("propertyImages") or {}).get("images", [])[:4]]
+        imgs = [i["srcUrl"] for i in (p.get("propertyImages") or {}).get("images", [])[:3]]
         outdoor = []
         if OUTDOOR_BALCONY.search(text):
             outdoor.append("balcony/terrace")
@@ -131,7 +131,7 @@ def collect_rightmove(max_price: int, region: str = "REGION^87490",
             "furnished": None,
             "published": (p.get("firstVisibleDate") or "")[:10],
             "url": "https://www.rightmove.co.uk" + p.get("propertyUrl", ""),
-            "summary": (p.get("summary") or "")[:220],
+            "summary": (p.get("summary") or "")[:180],
             "images": imgs,
         })
     return out
@@ -216,7 +216,7 @@ def collect_openrent(max_price: int) -> list[dict]:
                               else "unfurnished" if "Unfurnished" in details else None),
                 "published": "",
                 "url": f"https://www.openrent.co.uk/{p['id']}",
-                "summary": desc[:220],
+                "summary": desc[:180],
                 "images": [("https:" + img) if img.startswith("//") else img] if img else [],
             })
         time.sleep(DELAY + random.uniform(0, 1))
