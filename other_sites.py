@@ -139,14 +139,15 @@ def collect_rightmove(max_price: int, region: str = "REGION^87490",
 
 # ---- OpenRent ----------------------------------------------------------------
 
-def collect_openrent(max_price: int) -> list[dict]:
+def collect_openrent(max_price: int, slug: str = "london", min_beds: int | None = None) -> list[dict]:
+    base = OR_BASE.format(slug=slug, beds=f"&bedrooms_min={min_beds}" if min_beds else "")
     # one price band at a time: the all-in-one results page times out at scale
     ids, coords = [], {}
     bands = [(0, 1500), (1501, 2200), (2201, 3000), (3001, max_price)]
     for lo, hi in bands:
         if lo > max_price:
             break
-        html = _get(f"{OR_BASE}&prices_min={lo}&prices_max={min(hi, max_price)}")
+        html = _get(f"{base}&prices_min={lo}&prices_max={min(hi, max_price)}")
         if not html:
             continue
         def arr(name):
