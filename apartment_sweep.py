@@ -20,15 +20,27 @@ from pathlib import Path
 from curl_cffi import requests
 
 # ---- config ----------------------------------------------------------------
-MAX_PRICE = 4000          # pcm
-MIN_BEDS = 1
+HERE = Path(__file__).parent
+
+
+def _load_config() -> dict:
+    path = "config/london.json"
+    if "--config" in sys.argv:
+        path = sys.argv[sys.argv.index("--config") + 1]
+    p = Path(path) if Path(path).is_absolute() else HERE / path
+    return json.loads(p.read_text())
+
+
+CFG = _load_config()
+MAX_PRICE = CFG["max_price"]       # pcm
 WINDOW_START = date(2026, 9, 25)   # earliest acceptable move-in
 WINDOW_END = date(2026, 11, 30)    # latest acceptable move-in
-MAX_ZONE = 6              # approximate TfL zone cutoff (listings beyond are dropped)
-BASE = (
-    "https://www.zoopla.co.uk/to-rent/property/london/"
-    "?price_frequency=per_month&property_sub_type=flats&property_sub_type=studio"
-)
+ZOOPLA_SEARCHES = CFG["zoopla_searches"]
+CENTRE = tuple(CFG["centre"])
+ZONE_RADII_KM = CFG.get("zones")                 # radii for zones 1..n, or None
+AREAS = {k: tuple(v) for k, v in (CFG.get("areas") or {}).items()}
+MAX_KM = CFG.get("max_km")
+RETENTION_DAYS = CFG.get("retention_days", 21)
 # Zoopla caps pagination around 1000 results; bands above this get split.
 BAND_CAP = 900
 MIN_BAND_WIDTH = 50
@@ -45,12 +57,13 @@ SHARE_WORDS = re.compile(r"\b(room in|double room|single room|shared room|premiu
 REQUEST_DELAY = 3.0
 MAX_PAGES = 40
 
-HERE = Path(__file__).parent
-SEEN_FILE = HERE / "seen.json"
-REPORT_FILE = HERE / "matches.md"
-LOG_FILE = HERE / "sweep_log.txt"
-RAW_FILE = HERE / "listings_raw.json"
-SITE_DATA = HERE / "docs" / "data.json"
+STATE = Path(CFG["state_dir"])
+STATE.mkdir(parents=True, exist_ok=True)
+SEEN_FILE = STATE / "seen.json"
+REPORT_FILE = STATE / "matches.md"
+LOG_FILE = STATE / "sweep_log.txt"
+RAW_FILE = STATE / "listings_raw.json"
+SITE_DATA = Path(CFG["site_dir"]) / "data.json"
 
 # ---- fetching / parsing ----------------------------------------------------
 
@@ -183,7 +196,10 @@ def in_window(d: date | None) -> bool:
     return d is not None and WINDOW_START <= d <= WINDOW_END
 
 
-STATIONS = json.loads((HERE / "stations.json").read_text()) if (HERE / "stations.json").exists() else {}
+if CFG.get("stations") == "tfl":
+    STATIONS = json.loads((HERE / "stations.json").read_text()) if (HERE / "stations.json").exists() else {}
+else:
+    STATIONS = {k: tuple(v) for k, v in (CFG.get("stations") or {}).items()}
 
 
 def nearest_station(lat: float, lng: float) -> tuple[str, float] | tuple[None, None]:
@@ -200,21 +216,29 @@ def nearest_station(lat: float, lng: float) -> tuple[str, float] | tuple[None, N
     return best_name, round(111.32 * best_d2 ** 0.5, 2)
 
 
-# Approximate TfL zone from distance to Charing Cross. Zone boundaries are not
-# circles, so this is a heuristic — radii chosen so known stations land right.
-CENTRE = (51.5074, -0.1278)
-ZONE_RADII_KM = [3.0, 7.0, 11.0, 15.0, 19.5, 24.5]  # outer edge of zones 1-6
-
-
-def approx_zone(lat: float, lng: float) -> int | None:
+def _km(a_lat, a_lng, b_lat, b_lng) -> float:
     from math import asin, cos, radians, sin, sqrt
-    dlat, dlng = radians(lat - CENTRE[0]), radians(lng - CENTRE[1])
-    a = sin(dlat / 2) ** 2 + cos(radians(CENTRE[0])) * cos(radians(lat)) * sin(dlng / 2) ** 2
-    km = 2 * 6371 * asin(sqrt(a))
-    for zone, edge in enumerate(ZONE_RADII_KM, start=1):
-        if km <= edge:
-            return zone
-    return None
+    dlat, dlng = radians(b_lat - a_lat), radians(b_lng - a_lng)
+    h = sin(dlat / 2) ** 2 + cos(radians(a_lat)) * cos(radians(b_lat)) * sin(dlng / 2) ** 2
+    return 2 * 6371 * asin(sqrt(h))
+
+
+def locate(lat: float, lng: float) -> tuple[int | None, str | None, float] | None:
+    """(zone, area, km from centre) for a point, or None if it falls outside the
+    search area. Zones are concentric radii (London); areas are nearest named
+    centroids (Brighton). Both are heuristics."""
+    km = _km(CENTRE[0], CENTRE[1], lat, lng)
+    zone = None
+    if ZONE_RADII_KM:
+        zone = next((z for z, edge in enumerate(ZONE_RADII_KM, start=1) if km <= edge), None)
+        if zone is None:
+            return None
+    if MAX_KM and km > MAX_KM:
+        return None
+    area = None
+    if AREAS:
+        area = min(AREAS, key=lambda n: _km(AREAS[n][0], AREAS[n][1], lat, lng))
+    return zone, area, round(km, 2)
 
 # ---- main ------------------------------------------------------------------
 
@@ -225,11 +249,14 @@ def main() -> None:
         all_listings = {str(l["listingId"]): l for l in json.loads(RAW_FILE.read_text())}
         log(f"main search (cached): {len(all_listings)} listings")
     else:
-        all_listings = collect_all(BASE)
+        all_listings = {}
+        for search in ZOOPLA_SEARCHES:
+            all_listings.update(collect_all(search))
+            time.sleep(REQUEST_DELAY)
         RAW_FILE.write_text(json.dumps(list(all_listings.values())))
         log(f"main search: {len(all_listings)} listings")
 
-    tag_cache = HERE / "tag_ids.json"
+    tag_cache = STATE / "tag_ids.json"
     if "--from-cache" in sys.argv and tag_cache.exists():
         tag_ids = {k: set(v) for k, v in json.loads(tag_cache.read_text()).items()}
         log("tag filters: cached")
@@ -238,7 +265,9 @@ def main() -> None:
         for label, param in TAG_SEARCHES.items():
             time.sleep(REQUEST_DELAY + random.uniform(0, 1.5))
             try:
-                ids = set(collect_all(BASE + param))
+                ids = set()
+                for search in ZOOPLA_SEARCHES:
+                    ids |= set(collect_all(search + param))
             except RuntimeError as e:
                 # tag flags are nice-to-have; don't fail the whole sweep
                 log(f"{label} filter failed ({e}); skipping")
@@ -262,9 +291,10 @@ def main() -> None:
         if listing_tags & EXCLUDE_TAGS:
             continue
         pos = lst.get("pos") or {}
-        zone = approx_zone(pos.get("lat", 0), pos.get("lng", 0)) if pos else None
-        if zone is None or zone > MAX_ZONE:
+        loc = locate(pos["lat"], pos["lng"]) if pos.get("lat") is not None else None
+        if loc is None:
             continue
+        zone, area, centre_km = loc
         outdoor = sorted(t for t in OUTDOOR_TAGS if lid in tag_ids.get(t, ()))
         if not outdoor and OUTDOOR_WORDS.search(text_blob):
             outdoor = ["mentioned in description"]
@@ -287,6 +317,8 @@ def main() -> None:
             "baths": feats.get("bath"),
             "receptions": feats.get("chair"),
             "zone": zone,
+            "area": area,
+            "centre_km": centre_km,
             "lat": round(pos["lat"], 5),
             "lng": round(pos["lng"], 5),
             "station": st_name,
@@ -303,17 +335,23 @@ def main() -> None:
 
     # ---- Rightmove + OpenRent, deduplicated against Zoopla ----
     import other_sites
-    others_file = HERE / "other_sites_raw.json"
+    others_file = STATE / "other_sites_raw.json"
     cached_others = json.loads(others_file.read_text()) if others_file.exists() else []
     if "--from-cache" in sys.argv:
         others = cached_others
         log(f"other sites (cached): {len(others)}")
     else:
         others = []
-        for name, collector in (("Rightmove", other_sites.collect_rightmove),
-                                ("OpenRent", other_sites.collect_openrent)):
+        rm_cfg, or_cfg = CFG["rightmove"], CFG["openrent"]
+        collectors = (
+            ("Rightmove", lambda: other_sites.collect_rightmove(
+                MAX_PRICE, rm_cfg["region"], rm_cfg["property_types"], rm_cfg.get("min_beds"))),
+            ("OpenRent", lambda: other_sites.collect_openrent(
+                MAX_PRICE, or_cfg["slug"], or_cfg.get("min_beds"))),
+        )
+        for name, collector in collectors:
             try:
-                got = collector(MAX_PRICE)
+                got = collector()
                 log(f"{name.lower()}: {len(got)}")
             except Exception as e:
                 got = [x for x in cached_others if x["source"] == name]
@@ -321,10 +359,13 @@ def main() -> None:
             others += got
         others_file.write_text(json.dumps(others))
 
+    from math import cos, radians
+    LNG_KM = 111.3 * cos(radians(CENTRE[0]))
+
     def same_flat(a, b):
         if a["beds"] != b["beds"] or abs((a["price_num"] or 0) - (b["price_num"] or 0)) > 100:
             return False
-        dx = (a["lng"] - b["lng"]) * 78.6   # km per degree lng at London's latitude
+        dx = (a["lng"] - b["lng"]) * LNG_KM   # km per degree of longitude here
         dy = (a["lat"] - b["lat"]) * 111.3
         return dx * dx + dy * dy <= 0.12 ** 2
 
@@ -332,15 +373,15 @@ def main() -> None:
     for o in others:
         if o.get("lat") is None:
             continue
-        zone = approx_zone(o["lat"], o["lng"])
-        if zone is None or zone > MAX_ZONE:
+        loc = locate(o["lat"], o["lng"])
+        if loc is None:
             continue
         dup = next((m for m in matches if same_flat(m, o)), None)
         if dup:
             dup.setdefault("also_on", {})[o["source"]] = o["url"]
             merged += 1
             continue
-        o["zone"] = zone
+        o["zone"], o["area"], o["centre_km"] = loc
         o["station"], o["station_km"] = nearest_station(o["lat"], o["lng"])
         o["in_window"] = in_window(date.fromisoformat(o["available"])) if o.get("available") else False
         matches.append(o)
@@ -351,7 +392,7 @@ def main() -> None:
     new_ids = [m["id"] for m in matches if m["id"] not in seen]
     today = date.today().isoformat()
 
-    # availability: resurrect recently de-listed flats, flagged, for 30 days
+    # availability: resurrect recently de-listed flats, flagged, for RETENTION_DAYS
     current_ids = {m["id"] for m in matches}
     prev = json.loads(SITE_DATA.read_text()).get("listings", []) if SITE_DATA.exists() else []
     for old in prev:
@@ -359,9 +400,13 @@ def main() -> None:
         if oid in current_ids or oid not in seen:
             continue
         gone = seen[oid].setdefault("gone_since", today)
-        if (date.today() - date.fromisoformat(gone)).days > 30:
+        if (date.today() - date.fromisoformat(gone)).days > RETENTION_DAYS:
             continue
         old["unavailable"] = True
+        if old.get("centre_km") is None and old.get("lat") is not None:
+            loc = locate(old["lat"], old["lng"])
+            if loc:
+                old["zone"], old["area"], old["centre_km"] = loc
         matches.append(old)
     for m in matches:
         if not m.get("unavailable") and m["id"] in seen:
@@ -379,7 +424,7 @@ def main() -> None:
         m["first_seen"] = seen[m["id"]]["first_seen"]
 
     # EPC: rating lives on detail pages; fetch a budget per run, cache forever
-    epc_file = HERE / "epc_cache.json"
+    epc_file = STATE / "epc_cache.json"
     epc = json.loads(epc_file.read_text()) if epc_file.exists() else {}
     if "--from-cache" not in sys.argv or "--epc" in sys.argv:
         todo = sorted((m for m in matches if m["id"] not in epc and not m.get("unavailable")),
@@ -398,33 +443,41 @@ def main() -> None:
             m["epc"] = epc[m["id"]]
 
     # real public-transport times via TfL journey planner, budgeted per run
-    import pt_times
-    try:
-        pt_budget = 0 if ("--from-cache" in sys.argv and "--pt" not in sys.argv) else 400
-        pt_cache = pt_times.fill_cache(matches, budget=pt_budget, log=log)
-        pt_times.annotate(matches, pt_cache)
-    except Exception as e:
-        log(f"PT times failed ({e}); estimates only")
+    if CFG.get("pt_provider") == "tfl":
+        import pt_times
+        try:
+            pt_budget = 0 if ("--from-cache" in sys.argv and "--pt" not in sys.argv) else 400
+            dests = {k: tuple(v) for k, v in CFG["destinations"].items()}
+            pt_cache = pt_times.fill_cache(matches, budget=pt_budget, log=log,
+                                           dests=dests, cache_file=STATE / "pt_cache.json")
+            pt_times.annotate(matches, pt_cache)
+        except Exception as e:
+            log(f"PT times failed ({e}); estimates only")
 
     SITE_DATA.parent.mkdir(exist_ok=True)
     SITE_DATA.write_text(json.dumps({
         "generated": datetime.now().isoformat(timespec="minutes"),
         "criteria": {
-            "max_price": MAX_PRICE, "min_beds": MIN_BEDS, "max_zone": MAX_ZONE,
+            "key": CFG["key"], "title": CFG["title"], "emoji": CFG.get("emoji", ""),
+            "max_price": MAX_PRICE, "max_zone": len(ZONE_RADII_KM) if ZONE_RADII_KM else None,
+            "areas": list(AREAS) or None, "highlight": CFG.get("highlight"),
+            "centre": list(CENTRE),
             "window": [WINDOW_START.isoformat(), WINDOW_END.isoformat()],
+            "destinations": CFG["destinations"], "modes": CFG["modes"],
+            "people": CFG["people"],
+            "beds_options": CFG["beds_options"], "beds_default": CFG["beds_default"],
         },
         "listings": sorted(matches, key=lambda m: m["num"]),
     }, indent=1))
 
     # markdown report covers the target window only; the site shows everything
     report_matches = [m for m in matches if m["in_window"]]
-    report_matches.sort(key=lambda m: (not m["outdoor"], m["zone"], m["available"]))
+    report_matches.sort(key=lambda m: (not m["outdoor"], m.get("centre_km", 0), m["available"]))
 
     lines = [
         f"# Apartment sweep — {today}",
         "",
-        f"2+ bed flats in London (zones 1–{MAX_ZONE}) ≤ £{MAX_PRICE} pcm, "
-        f"available {WINDOW_START} to {WINDOW_END}.",
+        f"{CFG['title']}: ≤ £{MAX_PRICE} pcm, available {WINDOW_START} to {WINDOW_END}.",
         f"**{len(report_matches)} matches** ({len(new_ids)} new since last run).",
         "",
     ]
@@ -433,7 +486,7 @@ def main() -> None:
         outdoor = f" — **{', '.join(m['outdoor'])}**" if m["outdoor"] else ""
         lines += [
             f"### [{m['address']}]({m['url']}){tag}",
-            f"{m['price']} · {m['beds']} bed · ~zone {m['zone']} · "
+            f"{m['price']} · {m['beds']} bed · {m.get('area') or ('~zone ' + str(m.get('zone')))} · "
             f"available **{m['available']}**{outdoor} · listed {m['published']}",
             f"> {m['summary']}",
             "",
@@ -451,7 +504,7 @@ def main() -> None:
         subprocess.run([
             "osascript", "-e",
             f'display notification "{len(new_ids)} new flats in your window" '
-            f'with title "Apartment sweep"',
+            f'with title "{CFG["title"]}"',
         ], check=False)
 
 

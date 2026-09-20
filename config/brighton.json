@@ -1,0 +1,56 @@
+{
+  "key": "brighton",
+  "title": "Brighton Home Finder",
+  "emoji": "🌊",
+  "max_price": 2500,
+  "zoopla_searches": [
+    "https://www.zoopla.co.uk/to-rent/property/bn1/?price_frequency=per_month&beds_min=3",
+    "https://www.zoopla.co.uk/to-rent/property/bn2/?price_frequency=per_month&beds_min=3",
+    "https://www.zoopla.co.uk/to-rent/property/bn3/?price_frequency=per_month&beds_min=3",
+    "https://www.zoopla.co.uk/to-rent/property/bn41/?price_frequency=per_month&beds_min=3"
+  ],
+  "rightmove": {"region": "REGION^93554", "property_types": "flat,detached,semi-detached,terraced,bungalow", "min_beds": 3},
+  "openrent": {"slug": "brighton", "min_beds": 3},
+  "centre": [50.8228, -0.1409],
+  "zones": null,
+  "areas": {
+    "Kemptown": [50.8180, -0.1180],
+    "Queen's Park": [50.8250, -0.1225],
+    "Hanover": [50.8300, -0.1250],
+    "Elm Grove": [50.8335, -0.1200],
+    "North Laine": [50.8265, -0.1400],
+    "Seven Dials": [50.8300, -0.1480],
+    "Brunswick": [50.8265, -0.1620],
+    "Hove": [50.8300, -0.1760],
+    "Preston Park": [50.8420, -0.1470],
+    "Fiveways": [50.8440, -0.1380],
+    "Whitehawk": [50.8230, -0.0980],
+    "Moulsecoomb": [50.8480, -0.1150],
+    "Portslade": [50.8380, -0.2100]
+  },
+  "highlight": "Kemptown",
+  "max_km": 6.5,
+  "stations": {
+    "Brighton": [50.8290, -0.1412],
+    "Hove": [50.8355, -0.1710],
+    "London Road": [50.8365, -0.1360],
+    "Preston Park": [50.8470, -0.1550],
+    "Moulsecoomb": [50.8500, -0.1120],
+    "Falmer": [50.8620, -0.0870],
+    "Aldrington": [50.8390, -0.1830],
+    "Portslade": [50.8390, -0.2060]
+  },
+  "destinations": {
+    "Brighton station": [50.8290, -0.1412],
+    "Palace Pier": [50.8168, -0.1367],
+    "Kemptown seafront": [50.8175, -0.1230]
+  },
+  "modes": ["walk", "pt"],
+  "pt_provider": null,
+  "people": ["Aidan", "Alex", "Leah"],
+  "beds_options": [["3", "3 beds"], ["4", "4+ beds"], ["any", "Any (3+)"]],
+  "beds_default": "3",
+  "retention_days": 21,
+  "site_dir": "/Users/zuberi01/brighton-finder/docs",
+  "state_dir": "/Users/zuberi01/flat-finder/state/brighton"
+}

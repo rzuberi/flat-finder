@@ -15,10 +15,9 @@ from datetime import datetime
 from curl_cffi import requests
 
 RM_BASE = ("https://www.rightmove.co.uk/property-to-rent/find.html"
-           "?locationIdentifier=REGION%5E87490&propertyTypes=flat"
+           "?locationIdentifier={region}&propertyTypes={types}{beds}"
            "&includeLetAgreed=false&sortType=6")
-OR_BASE = ("https://www.openrent.co.uk/properties-to-rent/london"
-           "?term=London")
+OR_BASE = "https://www.openrent.co.uk/properties-to-rent/{slug}?term={slug}{beds}"
 DELAY = 2.0
 RM_CAP = 950          # rightmove stops serving past ~1000 results per search
 SHARE_WORDS = re.compile(r"\b(room in|double room|single room|shared room|premium room|en.?suite room|room (available|to rent|share)|house ?share|home ?share|flat ?share|shared (house|flat|accommodation)|multiple occupation|co.?living|lodger|studio room)\b", re.I)
@@ -46,8 +45,8 @@ def _get(url: str) -> str | None:
 
 # ---- Rightmove ---------------------------------------------------------------
 
-def _rm_page(pmin: int, pmax: int, index: int) -> tuple[list[dict], int]:
-    url = f"{RM_BASE}&minPrice={pmin}&maxPrice={pmax}&index={index}"
+def _rm_page(base: str, pmin: int, pmax: int, index: int) -> tuple[list[dict], int]:
+    url = f"{base}&minPrice={pmin}&maxPrice={pmax}&index={index}"
     html = _get(url)
     if html is None:
         return [], 0
@@ -59,14 +58,14 @@ def _rm_page(pmin: int, pmax: int, index: int) -> tuple[list[dict], int]:
     return res.get("properties", []), total
 
 
-def _rm_band(pmin: int, pmax: int, found: dict) -> None:
-    props, total = _rm_page(pmin, pmax, 0)
+def _rm_band(base: str, pmin: int, pmax: int, found: dict) -> None:
+    props, total = _rm_page(base, pmin, pmax, 0)
     if total > RM_CAP and (pmax - pmin) > 50:
         mid = (pmin + pmax) // 2
         time.sleep(DELAY)
-        _rm_band(pmin, mid, found)
+        _rm_band(base, pmin, mid, found)
         time.sleep(DELAY)
-        _rm_band(mid + 1, pmax, found)
+        _rm_band(base, mid + 1, pmax, found)
         return
     index = 0
     while props:
@@ -76,14 +75,17 @@ def _rm_band(pmin: int, pmax: int, found: dict) -> None:
         if index >= min(total, 1000):
             break
         time.sleep(DELAY + random.uniform(0, 1))
-        props, _ = _rm_page(pmin, pmax, index)
+        props, _ = _rm_page(base, pmin, pmax, index)
         if all(p["id"] in found for p in props):
             break
 
 
-def collect_rightmove(max_price: int) -> list[dict]:
+def collect_rightmove(max_price: int, region: str = "REGION^87490",
+                      property_types: str = "flat", min_beds: int | None = None) -> list[dict]:
+    base = RM_BASE.format(region=region.replace("^", "%5E"), types=property_types,
+                          beds=f"&minBedrooms={min_beds}" if min_beds else "")
     found: dict = {}
-    _rm_band(0, max_price, found)
+    _rm_band(base, 0, max_price, found)
     out = []
     for p in found.values():
         if p.get("commercial") or p.get("development") or p.get("students"):

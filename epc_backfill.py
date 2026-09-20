@@ -8,12 +8,11 @@ import re
 import time
 from pathlib import Path
 
-from apartment_sweep import extract_epc, fetch
+from apartment_sweep import SITE_DATA, STATE, extract_epc, fetch
 
-HERE = Path(__file__).parent
-EPC_FILE = HERE / "epc_cache.json"
+EPC_FILE = STATE / "epc_cache.json"
 
-data = json.loads((HERE / "docs" / "data.json").read_text())
+data = json.loads(SITE_DATA.read_text())
 epc = json.loads(EPC_FILE.read_text()) if EPC_FILE.exists() else {}
 
 todo = [l for l in data["listings"]

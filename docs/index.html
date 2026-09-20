@@ -3,26 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>London Flat Finder</title>
+<title>Flat Finder</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="style.css?v=4">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+<link rel="stylesheet" href="style.css?v=5">
+<link id="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
 </head>
 <body>
 <header>
-  <h1>🏠 London Flat Finder</h1>
+  <h1 id="title"></h1>
   <p id="meta"></p>
   <nav id="tabs">
-    <button class="tab active" data-tab="all">All flats</button>
+    <button class="tab active" data-tab="all">All</button>
     <button class="tab" data-tab="liked">❤️ Liked</button>
-    <select id="likedBy" hidden>
-      <option value="any">Liked by anyone</option>
-      <option value="Rehan">Liked by Rehan</option>
-      <option value="Clara">Liked by Clara</option>
-      <option value="both">Liked by both</option>
-    </select>
+    <select id="likedBy" hidden></select>
   </nav>
   <div class="filters">
     <span class="group">
@@ -33,13 +28,7 @@
       <label class="chk">£ <input type="number" id="pmin" placeholder="min" min="0" step="50"></label>
       <label class="chk">– <input type="number" id="pmax" placeholder="max" min="0" step="50"></label>
     </span>
-    <select id="beds">
-      <option value="2" selected>2 beds</option>
-      <option value="1">1 bed</option>
-      <option value="0">Studio</option>
-      <option value="3">3+ beds</option>
-      <option value="any">Any beds</option>
-    </select>
+    <select id="beds"></select>
     <select id="furnished">
       <option value="any">Furnished or not</option>
       <option value="furnished">Furnished</option>
@@ -50,15 +39,7 @@
       <label class="chk"><input type="checkbox" id="fGarden"> garden</label>
       <label class="chk"><input type="checkbox" id="fLiving"> living room</label>
     </span>
-    <span class="group" id="zones">
-      zones
-      <label class="chk"><input type="checkbox" value="1" checked> 1</label>
-      <label class="chk"><input type="checkbox" value="2" checked> 2</label>
-      <label class="chk"><input type="checkbox" value="3" checked> 3</label>
-      <label class="chk"><input type="checkbox" value="4" checked> 4</label>
-      <label class="chk"><input type="checkbox" value="5" checked> 5</label>
-      <label class="chk"><input type="checkbox" value="6" checked> 6</label>
-    </span>
+    <span class="group" id="zones"></span>
     <select id="stationMax">
       <option value="any">Any station distance</option>
       <option value="0.5">≤ 500 m to a station</option>
@@ -66,18 +47,8 @@
       <option value="1.2">≤ 1.2 km to a station</option>
     </select>
     <span class="group" title="Estimated door-to-door times">
-      <select id="ttDest">
-        <option value="">Travel time to…</option>
-        <option value="Waterloo">Waterloo</option>
-        <option value="St Thomas'">St Thomas' Hospital</option>
-        <option value="King's Cross">King's Cross</option>
-        <option value="Liverpool St">Liverpool St</option>
-      </select>
-      <select id="ttMode">
-        <option value="bike">by bike</option>
-        <option value="pt">by public transport</option>
-        <option value="walk">walking</option>
-      </select>
+      <select id="ttDest"><option value="">Travel time to…</option></select>
+      <select id="ttMode"></select>
       <label class="chk">≤ <input type="number" id="ttMax" placeholder="min" min="5" step="5" style="width:3.4rem"> min</label>
     </span>
     <label class="chk"><input type="checkbox" id="showTT"> show travel times</label>
@@ -106,15 +77,12 @@
 
 <dialog id="whoDialog">
   <h2>Who's liking this?</h2>
-  <menu>
-    <button data-who="Rehan">Rehan</button>
-    <button data-who="Clara">Clara</button>
-  </menu>
+  <menu id="whoButtons"></menu>
 </dialog>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

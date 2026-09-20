@@ -1,11 +1,13 @@
-/* London Flat Finder — static site served from GitHub Pages. */
+/* Flat finder — static site; everything city-specific comes from data.json. */
 
-// Fill these in once the Supabase project exists; empty = likes UI stays hidden.
 const SUPABASE_URL = "https://wielbwysxicciecjbcfl.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_WZe5odmah643LyQPQGIBjw_3Lud3Wpz";
-const SITE = "london";
 
-let data = { listings: [] };
+let data = { listings: [], criteria: {} };
+let SITE = "";
+let PEOPLE = [];
+let DESTS = {};
+let MODE_KEYS = [];
 let map = null;
 let markers = null;
 let sb = null;                 // supabase client
@@ -13,18 +15,10 @@ let likes = {};                // { listing_id: Set(person) }
 let pendingLike = null;        // listing id waiting for identity choice
 
 const $ = (s) => document.querySelector(s);
-const PEOPLE = ["Rehan", "Clara"];
 
 // ---- travel time estimates ---------------------------------------------------
-// Straight-line distance x 1.35 road circuity, then mode speeds. These are
-// estimates for comparing flats, not journey planning.
-const DESTS = {
-  "Waterloo": [51.5031, -0.1132],
-  "St Thomas'": [51.4980, -0.1187],
-  "King's Cross": [51.5308, -0.1238],
-  "Liverpool St": [51.5178, -0.0817],
-};
-
+// Straight-line distance x 1.35 road circuity, then mode speeds. Real TfL
+// times replace the public-transport estimate where the data has them.
 function kmTo(l, dest) {
   const [dlat, dlng] = DESTS[dest];
   const x = (dlng - l.lng) * Math.cos((l.lat + dlat) / 2 * Math.PI / 180);
@@ -33,9 +27,9 @@ function kmTo(l, dest) {
 }
 
 const MODES = {
-  walk: { label: "🚶", mins: (km) => km / 4.8 * 60 },
-  bike: { label: "🚲", mins: (km) => 3 + km / 14 * 60 },
-  pt:   { label: "🚇", mins: (km) => 10 + km / 22 * 60 },
+  walk: { label: "🚶", name: "walking", mins: (km) => km / 4.8 * 60 },
+  bike: { label: "🚲", name: "by bike", mins: (km) => 3 + km / 14 * 60 },
+  pt:   { label: "🚌", name: "by public transport", mins: (km) => 10 + km / 22 * 60 },
 };
 
 function travelMins(l, dest, mode) {
@@ -48,14 +42,46 @@ async function loadData() {
   const r = await fetch("data.json", { cache: "no-store" });
   data = await r.json();
   const c = data.criteria;
+  SITE = c.key;
+  PEOPLE = c.people || [];
+  DESTS = c.destinations || {};
+  MODE_KEYS = c.modes || ["walk", "pt"];
+  document.title = c.title;
+  $("#title").textContent = `${c.emoji || ""} ${c.title}`.trim();
+  $("#favicon").href = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${c.emoji || "🏠"}</text></svg>`;
+  const areaText = c.max_zone ? `zones 1–${c.max_zone}` : `${(c.areas || []).length} areas`;
   $("#meta").textContent =
-    `${data.listings.length} flats · ≤£${c.max_price} pcm · zones 1–${c.max_zone} · ` +
-    `updated ${data.generated}`;
+    `${data.listings.length} homes · ≤£${c.max_price} pcm · ${areaText} · updated ${data.generated}`;
+}
+
+function buildControls() {
+  const c = data.criteria;
+  $("#beds").innerHTML = c.beds_options
+    .map(([v, label]) => `<option value="${v}" ${v === c.beds_default ? "selected" : ""}>${label}</option>`).join("");
+
+  const zoneItems = c.areas
+    ? c.areas.map((a) => [a, a === c.highlight ? `★ ${a}` : a])
+    : Array.from({ length: c.max_zone }, (_, i) => [String(i + 1), String(i + 1)]);
+  $("#zones").innerHTML = (c.areas ? "" : "zones ") + zoneItems
+    .map(([v, label]) => `<label class="chk"><input type="checkbox" value="${v}" checked> ${label}</label>`).join("");
+  $("#zones").title = c.areas ? "Untick areas to hide them" : "Untick zones to hide them";
+
+  $("#ttDest").innerHTML = `<option value="">Travel time to…</option>` +
+    Object.keys(DESTS).map((d) => `<option value="${d}">${d}</option>`).join("");
+  $("#ttMode").innerHTML = MODE_KEYS
+    .map((m) => `<option value="${m}">${MODES[m].name}</option>`).join("");
+
+  $("#likedBy").innerHTML = `<option value="any">Liked by anyone</option>` +
+    PEOPLE.map((p) => `<option value="${p}">Liked by ${p}</option>`).join("") +
+    `<option value="all">Liked by ${PEOPLE.length > 2 ? "everyone" : "both"}</option>`;
+  $("#whoButtons").innerHTML = PEOPLE
+    .map((p) => `<button data-who="${p}">${p}</button>`).join("");
 }
 
 // ---- likes (Supabase) --------------------------------------------------------
 
-function whoAmI() { return localStorage.getItem("ff_who"); }
+const whoKey = () => `ff_who_${SITE}`;
+function whoAmI() { return localStorage.getItem(whoKey()); }
 
 async function loadLikes() {
   if (!sb) return;
@@ -71,15 +97,25 @@ async function toggleLike(id) {
   if (!whoAmI()) { pendingLike = id; $("#whoDialog").showModal(); return; }
   const who = whoAmI();
   const mine = likes[id]?.has(who);
+  let error;
   if (mine) {
     likes[id].delete(who);
     if (!likes[id].size) delete likes[id];
-    await sb.from("likes").delete().match({ site: SITE, listing_id: id, person: who });
+    ({ error } = await sb.from("likes").delete().match({ site: SITE, listing_id: id, person: who }));
   } else {
     (likes[id] ??= new Set()).add(who);
-    await sb.from("likes").insert({ site: SITE, listing_id: id, person: who });
+    ({ error } = await sb.from("likes").insert({ site: SITE, listing_id: id, person: who }));
   }
+  if (error) { toast(`Couldn't save like: ${error.message}`); await loadLikes(); }
   render(true);
+}
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 3500);
 }
 
 // ---- filtering ---------------------------------------------------------------
@@ -102,6 +138,7 @@ function moveInPass(l) {
 const EPC_ORDER = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
 
 function visibleListings() {
+  const c = data.criteria;
   const pmin = +$("#pmin").value || 0;
   const pmax = +$("#pmax").value || Infinity;
   const beds = $("#beds").value;
@@ -109,7 +146,7 @@ function visibleListings() {
   const stationMax = $("#stationMax").value;
   const epcMin = $("#epcMin").value;
   const zones = new Set(
-    [...document.querySelectorAll("#zones input:checked")].map((c) => +c.value),
+    [...document.querySelectorAll("#zones input:checked")].map((x) => x.value),
   );
   const wantBalcony = $("#fBalcony").checked;
   const wantGarden = $("#fGarden").checked;
@@ -122,9 +159,9 @@ function visibleListings() {
   if ($("#availOnly").checked) ls = ls.filter((l) => !l.unavailable);
   ls = ls.filter((l) => l.price_num >= pmin && l.price_num <= pmax);
   if (beds !== "any") {
-    ls = beds === "3"
-      ? ls.filter((l) => l.beds >= 3)
-      : ls.filter((l) => l.beds === +beds);
+    // the highest listed option means "that many or more"
+    const top = c.beds_options.filter(([v]) => v !== "any").map(([v]) => +v).sort((a, b) => b - a)[0];
+    ls = +beds === top ? ls.filter((l) => l.beds >= +beds) : ls.filter((l) => l.beds === +beds);
   }
   if (furnished !== "any") ls = ls.filter((l) => l.furnished === furnished);
   if (wantBalcony || wantGarden) {
@@ -133,7 +170,7 @@ function visibleListings() {
       (wantGarden && l.outdoor.includes("garden")));
   }
   if (wantLiving) ls = ls.filter((l) => l.receptions >= 1);
-  ls = ls.filter((l) => zones.has(l.zone));
+  ls = ls.filter((l) => zones.has(c.areas ? l.area : String(l.zone)));
   if (stationMax !== "any") ls = ls.filter((l) => l.station_km != null && l.station_km <= +stationMax);
   if (epcMin !== "any") ls = ls.filter((l) => l.epc && EPC_ORDER[l.epc] <= EPC_ORDER[epcMin]);
   if (ttDest && ttMax) ls = ls.filter((l) => travelMins(l, ttDest, ttMode) <= ttMax);
@@ -144,7 +181,7 @@ function visibleListings() {
       const s = likes[l.id];
       if (!s) return false;
       if (by === "any") return true;
-      if (by === "both") return PEOPLE.every((p) => s.has(p));
+      if (by === "all") return PEOPLE.every((p) => s.has(p));
       return s.has(by);
     });
   }
@@ -156,7 +193,7 @@ function visibleListings() {
     priceDesc: (a, b) => b.price_num - a.price_num,
     available: (a, b) => avail(a).localeCompare(avail(b)),
     station: (a, b) => (a.station_km ?? 99) - (b.station_km ?? 99),
-    zone: (a, b) => a.zone - b.zone || a.price_num - b.price_num,
+    zone: (a, b) => (a.centre_km ?? a.zone) - (b.centre_km ?? b.zone) || a.price_num - b.price_num,
   }[$("#sort").value];
   return ls.sort(cmp);
 }
@@ -167,9 +204,13 @@ function travelBlock(l) {
   if (!$("#showTT").checked) return "";
   const rows = Object.keys(DESTS).map((d) =>
     `<span class="ttrow"><b>${d}</b> ` +
-    Object.entries(MODES).map(([m, cfg]) => `${cfg.label}${travelMins(l, d, m)}′`).join(" ") +
+    MODE_KEYS.map((m) => `${MODES[m].label}${travelMins(l, d, m)}′`).join(" ") +
     `</span>`).join("");
   return `<span class="tt" title="Estimated from distance — not live journey times">${rows}</span>`;
+}
+
+function placeLabel(l) {
+  return l.area ? l.area : `~zone ${l.zone}`;
 }
 
 function card(l) {
@@ -199,7 +240,7 @@ function card(l) {
     <div class="body">
       <span class="price">${l.price}</span>
       <span class="addr">${l.address}</span>
-      <span class="specs">${l.beds} bed${l.baths ? ` · ${l.baths} bath` : ""}${l.receptions ? ` · ${l.receptions} recep` : ""} · ~zone ${l.zone}${stationLine}</span>
+      <span class="specs">${l.beds === 0 ? "studio" : `${l.beds} bed`}${l.baths ? ` · ${l.baths} bath` : ""}${l.receptions ? ` · ${l.receptions} recep` : ""} · ${placeLabel(l)}${stationLine}</span>
       <span class="badges">
         <span class="badge avail">${l.date_unknown ? "move-in date unknown" : l.available ? `move in ${l.available}` : "available now"}</span>
         ${l.source ? `<span class="badge src">${l.source}</span>` : ""}
@@ -231,7 +272,8 @@ function card(l) {
 
 function renderMap(ls) {
   if (!map) {
-    map = L.map("map").setView([51.5074, -0.1278], 11);
+    const c = data.criteria;
+    map = L.map("map").setView(c.centre || [51.5074, -0.1278], c.max_zone ? 11 : 13);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
@@ -245,7 +287,7 @@ function renderMap(ls) {
     m.bindPopup(
       `<b>#${l.num} · ${l.price}</b><br>${l.address}<br>` +
       `${l.beds} bed · ${l.available ? "move in " + l.available : "available now"}<br>` +
-      `<a href="${l.url}" target="_blank" rel="noopener">View on Zoopla →</a>`,
+      `<a href="${l.url}" target="_blank" rel="noopener">View on ${l.source || "Zoopla"} →</a>`,
     );
     markers.addLayer(m);
   }
@@ -261,7 +303,7 @@ let mapMode = false;
 function render(keepShown) {
   if (!keepShown) shown = PAGE;
   const ls = visibleListings();
-  $("#count").textContent = `${ls.length} flat${ls.length === 1 ? "" : "s"} match`;
+  $("#count").textContent = `${ls.length} home${ls.length === 1 ? "" : "s"} match`;
   $("#empty").hidden = ls.length > 0;
 
   $("#map").hidden = !mapMode;
@@ -279,14 +321,6 @@ function render(keepShown) {
 
 // ---- init ------------------------------------------------------------------
 
-["from", "to", "pmin", "pmax", "beds", "furnished", "fBalcony", "fGarden",
- "fLiving", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
- "availOnly", "epcMin", "likedBy"].forEach((id) =>
-  $("#" + id).addEventListener("change", render),
-);
-document.querySelectorAll("#zones input").forEach((c) =>
-  c.addEventListener("change", render),
-);
 $("#viewToggle").onclick = () => {
   mapMode = !mapMode;
   $("#viewToggle").textContent = mapMode ? "✕ Hide map" : "🗺 Map";
@@ -301,20 +335,32 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
     render();
   }),
 );
-document.querySelectorAll("#whoDialog button").forEach((b) =>
-  b.addEventListener("click", () => {
-    localStorage.setItem("ff_who", b.dataset.who);
-    $("#whoDialog").close();
-    if (pendingLike) { const id = pendingLike; pendingLike = null; toggleLike(id); }
-  }),
-);
 
 (async () => {
   if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
   if (!sb) document.querySelector('#tabs [data-tab="liked"]').hidden = true;
-  await Promise.all([loadData(), loadLikes()]);
+  await loadData();
+  buildControls();
+  await loadLikes();
+
+  ["from", "to", "pmin", "pmax", "beds", "furnished", "fBalcony", "fGarden",
+   "fLiving", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
+   "availOnly", "epcMin", "likedBy"].forEach((id) =>
+    $("#" + id).addEventListener("change", render),
+  );
+  document.querySelectorAll("#zones input").forEach((x) =>
+    x.addEventListener("change", render),
+  );
+  document.querySelectorAll("#whoButtons button").forEach((b) =>
+    b.addEventListener("click", () => {
+      localStorage.setItem(whoKey(), b.dataset.who);
+      $("#whoDialog").close();
+      if (pendingLike) { const id = pendingLike; pendingLike = null; toggleLike(id); }
+    }),
+  );
+
   const [start, end] = data.criteria.window;
   $("#from").value = start;
   $("#to").value = end;

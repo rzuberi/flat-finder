@@ -8,3 +8,5 @@ tag_ids.json
 pt_cache.json
 other_sites_raw.json
 launchd.log
+state/
+.DS_Store

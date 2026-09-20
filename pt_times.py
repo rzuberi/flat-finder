@@ -39,9 +39,11 @@ def _journey_mins(from_lat: float, from_lng: float, to: tuple) -> int | None:
     return min(durations) if durations else None
 
 
-def fill_cache(listings: list[dict], budget: int = 400, log=print) -> dict:
+def fill_cache(listings: list[dict], budget: int = 400, log=print,
+               dests: dict | None = None, cache_file: Path = CACHE) -> dict:
     """Query missing cells for the given listings, newest-window first."""
-    cache = json.loads(CACHE.read_text()) if CACHE.exists() else {}
+    DESTS = dests or globals()["DESTS"]
+    cache = json.loads(cache_file.read_text()) if cache_file.exists() else {}
     todo = []
     seen_cells = set()
     for l in sorted(listings, key=lambda m: not m.get("in_window", False)):
@@ -66,7 +68,7 @@ def fill_cache(listings: list[dict], budget: int = 400, log=print) -> dict:
             time.sleep(1 + random.uniform(0, 0.6))
         if calls >= budget:
             break
-    CACHE.write_text(json.dumps(cache))
+    cache_file.write_text(json.dumps(cache))
     log(f"TfL PT cache: {len(cache)} cells, {calls} queries this run, "
         f"{sum(len(m) for _, _, _, m in todo) - calls} still missing")
     return cache

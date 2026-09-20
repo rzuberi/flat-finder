@@ -1,0 +1,31 @@
+{
+  "key": "london",
+  "title": "London Flat Finder",
+  "emoji": "🏠",
+  "max_price": 4000,
+  "zoopla_searches": [
+    "https://www.zoopla.co.uk/to-rent/property/london/?price_frequency=per_month&property_sub_type=flats&property_sub_type=studio"
+  ],
+  "rightmove": {"region": "REGION^87490", "property_types": "flat", "min_beds": null},
+  "openrent": {"slug": "london", "min_beds": null},
+  "centre": [51.5074, -0.1278],
+  "zones": [3.0, 7.0, 11.0, 15.0, 19.5, 24.5],
+  "areas": null,
+  "highlight": null,
+  "max_km": null,
+  "stations": "tfl",
+  "destinations": {
+    "Waterloo": [51.5031, -0.1132],
+    "St Thomas'": [51.4980, -0.1187],
+    "King's Cross": [51.5308, -0.1238],
+    "Liverpool St": [51.5178, -0.0817]
+  },
+  "modes": ["walk", "bike", "pt"],
+  "pt_provider": "tfl",
+  "people": ["Rehan", "Clara"],
+  "beds_options": [["2", "2 beds"], ["1", "1 bed"], ["0", "Studio"], ["3", "3+ beds"], ["any", "Any beds"]],
+  "beds_default": "2",
+  "retention_days": 21,
+  "site_dir": "/Users/zuberi01/flat-finder/docs",
+  "state_dir": "/Users/zuberi01/flat-finder"
+}
