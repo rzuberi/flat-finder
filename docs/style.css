@@ -114,3 +114,12 @@ input[type="number"] { width: 4.6rem; background: var(--card); color: var(--text
 .zlink.also { font-weight: 400; font-size: .8rem; opacity: .85; }
 .badge.pets { background: #16a34a22; color: #15803d; font-weight: 600; }
 .badge.nopets { background: #dc262622; color: #b91c1c; }
+
+/* personal (one-bedroom) page: warm cream, same in dark mode */
+body.theme-cream, body.theme-cream:root { --bg: #f7f1e6; --card: #fffaf2; --text: #2a2419; --muted: #7a6f5e;
+  --accent: #b0651f; --badge: #efe4d2; --border: #e4d8c4; --new: #2f7d32; }
+@media (prefers-color-scheme: dark) {
+  body.theme-cream { --bg: #f7f1e6; --card: #fffaf2; --text: #2a2419; --muted: #7a6f5e;
+    --accent: #b0651f; --badge: #efe4d2; --border: #e4d8c4; --new: #2f7d32; }
+}
+.tab.link { text-decoration: none; color: var(--text); }

@@ -1,0 +1,39 @@
+name: flat digest
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,4"      # Monday and Thursday, 07:00 UK summer time
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Look back this many days"
+        default: "4"
+      to:
+        description: "Recipient override (blank = configured list)"
+        default: ""
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install anthropic
+      - run: python digest.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          DIGEST_TO: ${{ inputs.to || vars.DIGEST_TO }}
+          DIGEST_DAYS: ${{ inputs.days }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: digest-preview
+          path: digest_preview.html
+          if-no-files-found: ignore

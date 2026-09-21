@@ -39,9 +39,12 @@ function travelMins(l, dest, mode) {
 
 // ---- load ------------------------------------------------------------------
 async function loadData() {
-  const r = await fetch("data.json", { cache: "no-store" });
+  const view = window.VIEW || {};
+  const r = await fetch(view.data || "data.json", { cache: "no-store" });
   data = await r.json();
+  Object.assign(data.criteria, view);        // per-page overrides on shared data
   const c = data.criteria;
+  if (c.theme) document.body.classList.add("theme-" + c.theme);
   SITE = c.key;
   PEOPLE = c.people || [];
   DESTS = c.destinations || {};
@@ -51,7 +54,14 @@ async function loadData() {
   $("#favicon").href = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${c.emoji || "🏠"}</text></svg>`;
   const areaText = c.max_zone ? `zones 1–${c.max_zone}` : `${(c.areas || []).length} areas`;
   $("#meta").textContent =
-    `${data.listings.length} homes · ≤£${c.max_price} pcm · ${areaText} · updated ${data.generated}`;
+    `${data.listings.length} homes · ≤£${c.price_cap || c.max_price} pcm · ${areaText} · updated ${data.generated}`;
+  for (const [label, href] of c.links || []) {
+    const a = document.createElement("a");
+    a.className = "tab link";
+    a.href = href;
+    a.textContent = label;
+    $("#tabs").append(a);
+  }
 }
 
 function buildControls() {
@@ -81,7 +91,10 @@ function buildControls() {
 // ---- likes (Supabase) --------------------------------------------------------
 
 const whoKey = () => `ff_who_${SITE}`;
-function whoAmI() { return localStorage.getItem(whoKey()); }
+function whoAmI() {
+  if (PEOPLE.length === 1) return PEOPLE[0];   // a personal page never asks
+  return localStorage.getItem(whoKey());
+}
 
 async function loadLikes() {
   if (!sb) return;
@@ -157,6 +170,7 @@ function visibleListings() {
   const ttMode = $("#ttMode").value;
 
   let ls = data.listings.filter(moveInPass);
+  if (c.price_cap) ls = ls.filter((l) => l.price_num <= c.price_cap);
   if ($("#availOnly").checked) ls = ls.filter((l) => !l.unavailable);
   ls = ls.filter((l) => l.price_num >= pmin && l.price_num <= pmax);
   if (beds !== "any") {
@@ -251,7 +265,7 @@ function card(l) {
         ${l.pets === "yes" ? `<span class="badge pets">🐾 pets allowed</span>` : l.pets === "no" ? `<span class="badge nopets">no pets</span>` : ""}
         ${l.epc ? `<span class="badge">EPC ${l.epc}</span>` : ""}
       </span>
-      ${liked?.size ? `<span class="hearts-by">❤️ ${[...liked].join(" & ")}</span>` : ""}
+      ${liked?.size && PEOPLE.length > 1 ? `<span class="hearts-by">❤️ ${[...liked].join(" & ")}</span>` : ""}
       ${travelBlock(l)}
       <span class="summary">${l.summary}</span>
       <a class="zlink" href="${l.url}" target="_blank" rel="noopener">View on ${l.source || "Zoopla"} →</a>
@@ -334,7 +348,7 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
     tab = b.dataset.tab;
     document.querySelectorAll("#tabs .tab").forEach((x) =>
       x.classList.toggle("active", x === b));
-    $("#likedBy").hidden = tab !== "liked";
+    $("#likedBy").hidden = tab !== "liked" || PEOPLE.length < 2;
     render();
   }),
 );
@@ -367,6 +381,7 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
   const [start, end] = data.criteria.window;
   $("#from").value = start;
   $("#to").value = end;
+  if (data.criteria.pmax_default) $("#pmax").value = data.criteria.pmax_default;
   // these controls only appear once the data actually carries the fields
   $("#furnished").hidden = !data.listings.some((l) => l.furnished);
   $("#fPets").parentElement.hidden = !data.criteria.pets;
