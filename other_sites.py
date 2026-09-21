@@ -43,6 +43,14 @@ def _get(url: str) -> str | None:
     raise RuntimeError(f"{last} for {url}")
 
 
+def _sqft(size: str | None) -> int | None:
+    m = re.search(r"([\d,]+)\s*sq\.? ?ft", size or "", re.I)
+    if m:
+        return int(m.group(1).replace(",", ""))
+    m = re.search(r"([\d,]+)\s*(sq\.? ?m|m²)", size or "", re.I)
+    return round(int(m.group(1).replace(",", "")) * 10.764) if m else None
+
+
 def _pets(text: str) -> str | None:
     from apartment_sweep import pets_from_text
     return pets_from_text(text)
@@ -128,6 +136,7 @@ def collect_rightmove(max_price: int, region: str = "REGION^87490",
             "beds": beds,
             "baths": p.get("bathrooms"),
             "receptions": None,
+            "sqft": _sqft(p.get("displaySize")),
             "lat": loc.get("latitude"),
             "lng": loc.get("longitude"),
             "available": avail,

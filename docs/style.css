@@ -123,3 +123,6 @@ body.theme-cream, body.theme-cream:root { --bg: #f7f1e6; --card: #fffaf2; --text
     --accent: #b0651f; --badge: #efe4d2; --border: #e4d8c4; --new: #2f7d32; }
 }
 .tab.link { text-decoration: none; color: var(--text); }
+.badge.gym { background: #2563eb22; color: #1d4ed8; font-weight: 600; }
+.badge.bills { background: #16a34a22; color: #15803d; }
+.badge.shortlet { background: #dc262622; color: #b91c1c; font-weight: 600; }

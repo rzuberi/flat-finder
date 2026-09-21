@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="../style.css?v=7">
+<link rel="stylesheet" href="../style.css?v=8">
 <link id="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
 </head>
 <body>
@@ -39,7 +39,11 @@
       <label class="chk"><input type="checkbox" id="fGarden"> garden</label>
       <label class="chk"><input type="checkbox" id="fLiving"> living room</label>
       <label class="chk"><input type="checkbox" id="fPets"> pets allowed</label>
+      <label class="chk"><input type="checkbox" id="fBills"> bills included</label>
+      <label class="chk"><input type="checkbox" id="fGym"> gym in building</label>
     </span>
+    <label class="chk"><input type="checkbox" id="fLong" checked> 6+ month lets only</label>
+    <label class="chk">≥ <input type="number" id="minSqm" placeholder="m²" min="0" step="5" style="width:3.6rem"> m²</label>
     <span class="group" id="zones"></span>
     <select id="stationMax">
       <option value="any">Any station distance</option>
@@ -94,6 +98,6 @@ window.VIEW = {
   links: [["← one bedroom", "../"]]
 };
 </script>
-<script src="../app.js?v=7"></script>
+<script src="../app.js?v=8"></script>
 </body>
 </html>

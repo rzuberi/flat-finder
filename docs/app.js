@@ -165,6 +165,10 @@ function visibleListings() {
   const wantGarden = $("#fGarden").checked;
   const wantLiving = $("#fLiving").checked;
   const wantPets = $("#fPets").checked;
+  const wantBills = $("#fBills").checked;
+  const wantGym = $("#fGym").checked;
+  const longOnly = $("#fLong").checked;
+  const minSqm = +$("#minSqm").value || 0;
   const ttDest = $("#ttDest").value;
   const ttMax = +$("#ttMax").value;
   const ttMode = $("#ttMode").value;
@@ -186,6 +190,10 @@ function visibleListings() {
   }
   if (wantLiving) ls = ls.filter((l) => l.receptions >= 1);
   if (wantPets) ls = ls.filter((l) => l.pets === "yes");
+  if (wantBills) ls = ls.filter((l) => l.bills_included);
+  if (wantGym) ls = ls.filter((l) => l.gym_in_building);
+  if (longOnly) ls = ls.filter((l) => !l.short_let);
+  if (minSqm) ls = ls.filter((l) => l.sqft && l.sqft / 10.764 >= minSqm);
   ls = ls.filter((l) => zones.has(c.areas ? l.area : String(l.zone)));
   if (stationMax !== "any") ls = ls.filter((l) => l.station_km != null && l.station_km <= +stationMax);
   if (epcMin !== "any") ls = ls.filter((l) => l.epc && EPC_ORDER[l.epc] <= EPC_ORDER[epcMin]);
@@ -234,9 +242,13 @@ function card(l) {
   el.className = "card" + (l.unavailable ? " gone" : "");
   const isNew = l.first_seen === (data.generated || "").slice(0, 10);
   let img = 0;
+  const walkMins = l.station_km != null ? Math.round(l.station_km * 1.35 / 4.8 * 60) : null;
   const stationLine = l.station
-    ? ` · ${l.station_km < 1 ? Math.round(l.station_km * 1000) + " m" : l.station_km + " km"} to ${l.station}`
+    ? `<br>🚇 ${l.station}${l.station_lines?.length ? ` (${l.station_lines.join(", ")})` : ""} · ${walkMins} min walk`
     : "";
+  const sqm = l.sqft ? ` · ${Math.round(l.sqft / 10.764)} m²` : "";
+  const gymLine = l.gym_in_building ? "" : l.gym
+    ? `<br>🏋️ nearest gym: ${l.gym}, ${l.gym_km < 1 ? Math.round(l.gym_km * 1000) + " m" : l.gym_km + " km"}` : "";
   const liked = likes[l.id];
   const likeBtn = sb
     ? `<button class="heart ${liked?.has(whoAmI()) ? "on" : ""}" title="Like">${liked?.size ? "❤️" : "🤍"}</button>`
@@ -256,7 +268,7 @@ function card(l) {
     <div class="body">
       <span class="price">${l.price}</span>
       <span class="addr">${l.address}</span>
-      <span class="specs">${l.beds === 0 ? "studio" : `${l.beds} bed`}${l.baths ? ` · ${l.baths} bath` : ""}${l.receptions ? ` · ${l.receptions} recep` : ""} · ${placeLabel(l)}${stationLine}</span>
+      <span class="specs">${l.beds === 0 ? "studio" : `${l.beds} bed`}${l.baths ? ` · ${l.baths} bath` : ""}${l.receptions ? ` · ${l.receptions} recep` : ""} · ${placeLabel(l)}${sqm}${stationLine}${gymLine}</span>
       <span class="badges">
         <span class="badge avail">${l.date_unknown ? "move-in date unknown" : l.available ? `move in ${l.available}` : "available now"}</span>
         ${l.source ? `<span class="badge src">${l.source}</span>` : ""}
@@ -264,6 +276,9 @@ function card(l) {
         ${l.furnished ? `<span class="badge">${l.furnished}</span>` : ""}
         ${l.pets === "yes" ? `<span class="badge pets">🐾 pets allowed</span>` : l.pets === "no" ? `<span class="badge nopets">no pets</span>` : ""}
         ${l.epc ? `<span class="badge">EPC ${l.epc}</span>` : ""}
+        ${l.gym_in_building ? `<span class="badge gym">🏋️ gym in building</span>` : ""}
+        ${l.bills_included ? `<span class="badge bills">bills included</span>` : ""}
+        ${l.short_let ? `<span class="badge shortlet">short let</span>` : ""}
       </span>
       ${liked?.size && PEOPLE.length > 1 ? `<span class="hearts-by">❤️ ${[...liked].join(" & ")}</span>` : ""}
       ${travelBlock(l)}
@@ -363,7 +378,7 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
   await loadLikes();
 
   ["from", "to", "pmin", "pmax", "beds", "furnished", "fBalcony", "fGarden",
-   "fLiving", "fPets", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
+   "fLiving", "fPets", "fBills", "fGym", "fLong", "minSqm", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
    "availOnly", "epcMin", "likedBy"].forEach((id) =>
     $("#" + id).addEventListener("change", render),
   );
@@ -382,6 +397,10 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
   $("#from").value = start;
   $("#to").value = end;
   if (data.criteria.pmax_default) $("#pmax").value = data.criteria.pmax_default;
+  if (data.criteria.tt_default) {
+    const [d, m, mins] = data.criteria.tt_default;
+    $("#ttDest").value = d; $("#ttMode").value = m; $("#ttMax").value = mins;
+  }
   // these controls only appear once the data actually carries the fields
   $("#furnished").hidden = !data.listings.some((l) => l.furnished);
   $("#fPets").parentElement.hidden = !data.criteria.pets;

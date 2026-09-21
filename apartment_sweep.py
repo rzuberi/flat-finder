@@ -242,11 +242,59 @@ def nearest_station(lat: float, lng: float) -> tuple[str, float] | tuple[None, N
     from math import cos, radians
     best_name, best_d2 = None, None
     coslat = cos(radians(lat))
-    for name, (slat, slng) in STATIONS.items():
+    for name, entry in STATIONS.items():
+        slat, slng = entry[0], entry[1]
         d2 = (slat - lat) ** 2 + ((slng - lng) * coslat) ** 2
         if best_d2 is None or d2 < best_d2:
             best_name, best_d2 = name, d2
     return best_name, round(111.32 * best_d2 ** 0.5, 2)
+
+
+def station_lines(name: str | None) -> list[str]:
+    entry = STATIONS.get(name) if name else None
+    return list(entry[2]) if entry and len(entry) > 2 else []
+
+
+GYMS = json.loads((HERE / "gyms.json").read_text()) if CFG.get("gyms") and (HERE / "gyms.json").exists() else []
+_GYM_GRID: dict = {}
+for _g in GYMS:
+    _GYM_GRID.setdefault((round(_g[1], 2), round(_g[2], 2)), []).append(_g)
+
+
+def nearest_gym(lat: float, lng: float) -> tuple[str, float] | tuple[None, None]:
+    """Nearest gym (OpenStreetMap fitness centres) via a coarse grid lookup."""
+    if not GYMS:
+        return None, None
+    from math import cos, radians
+    coslat = cos(radians(lat))
+    best, best_d2 = None, None
+    clat, clng = round(lat, 2), round(lng, 2)
+    for r in (1, 2, 4):
+        for dl in range(-r, r + 1):
+            for dg in range(-r, r + 1):
+                for name, glat, glng in _GYM_GRID.get((round(clat + dl / 100, 2), round(clng + dg / 100, 2)), ()):
+                    d2 = (glat - lat) ** 2 + ((glng - lng) * coslat) ** 2
+                    if best_d2 is None or d2 < best_d2:
+                        best, best_d2 = name, d2
+        if best is not None:
+            break
+    if best is None:
+        return None, None
+    return best, round(111.32 * best_d2 ** 0.5, 2)
+
+
+BILLS_WORDS = re.compile(r"(?i)\b(all )?bills (are )?inc(luded|lusive)?\b|\binclusive of (all )?bills\b|\bbills inc\b")
+SHORT_LET_WORDS = re.compile(r"(?i)\bshort[- ]?(term )?let\b|\bshort[- ]term\b|\bholiday let\b|\bserviced apartment\b|\bmin(imum)? (stay )?(of )?[1-5] (month|week)s?\b|\bper night\b|\bnightly\b")
+GYM_WORDS = re.compile(r"(?i)\b(residents'? |on-?site |private |communal |24[- ]?hour? |fully[- ]equipped )?gym(nasium)?\b|\bfitness (suite|centre|room|studio)\b")
+
+
+def text_flags(text: str) -> dict:
+    """Facts that only ever appear in the free text of a listing."""
+    return {
+        "bills_included": bool(BILLS_WORDS.search(text or "")),
+        "short_let": bool(SHORT_LET_WORDS.search(text or "")),
+        "gym_in_building": bool(GYM_WORDS.search(text or "")),
+    }
 
 
 def _km(a_lat, a_lng, b_lat, b_lng) -> float:
@@ -344,7 +392,12 @@ def main() -> None:
         if price_pcm is None or price_pcm > MAX_PRICE:
             continue
         st_name, st_km = nearest_station(pos["lat"], pos["lng"])
+        gym_name, gym_km = nearest_gym(pos["lat"], pos["lng"])
         matches.append({
+            **text_flags(text_blob),
+            "sqft": lst.get("sizeSqft") or None,
+            "station_lines": station_lines(st_name),
+            "gym": gym_name, "gym_km": gym_km,
             "id": lid,
             "address": lst.get("address", ""),
             "price": lst.get("price", ""),
@@ -420,6 +473,9 @@ def main() -> None:
             continue
         o["zone"], o["area"], o["centre_km"] = loc
         o["station"], o["station_km"] = nearest_station(o["lat"], o["lng"])
+        o["station_lines"] = station_lines(o["station"])
+        o["gym"], o["gym_km"] = nearest_gym(o["lat"], o["lng"])
+        o.update(text_flags(f"{o.get('address','')} {o.get('summary','')}"))
         o["in_window"] = in_window(date.fromisoformat(o["available"])) if o.get("available") else False
         matches.append(o)
     log(f"other sites: {merged} merged into Zoopla listings, "

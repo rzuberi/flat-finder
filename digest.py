@@ -30,7 +30,7 @@ def load_new_listings() -> list[dict]:
     for l in listings:
         if l.get("unavailable") or l.get("beds") not in (1, 2):
             continue
-        if l["price_num"] > HARD_CAP or not l.get("in_window"):
+        if l["price_num"] > HARD_CAP or not l.get("in_window") or l.get("short_let"):
             continue
         if (l.get("first_seen") or "") < since:
             continue
@@ -55,6 +55,8 @@ def heuristic(l: dict) -> float:
         s += 2
     if l.get("date_unknown"):
         s -= 3
+    s += 3 if l.get("gym_in_building") else 0
+    s += 2 if l.get("bills_included") else 0
     s += min(len(l.get("images") or []), 3)
     return s
 
@@ -66,7 +68,11 @@ def brief(l: dict) -> dict:
         "baths": l.get("baths"), "address": l["address"], "zone": l.get("zone"),
         "move_in": l.get("available") or ("unknown" if l.get("date_unknown") else "now"),
         "outdoor": l.get("outdoor") or [], "furnished": l.get("furnished"),
-        "epc": l.get("epc"), "station": l.get("station"), "station_km": l.get("station_km"),
+        "epc": l.get("epc"), "station": l.get("station"), "station_lines": l.get("station_lines"),
+        "station_walk_mins": round(l["station_km"] * 1.35 / 4.8 * 60) if l.get("station_km") is not None else None,
+        "floor_area_sqm": round(l["sqft"] / 10.764) if l.get("sqft") else None,
+        "bills_included": l.get("bills_included"), "gym_in_building": l.get("gym_in_building"),
+        "nearest_gym": f"{l['gym']} ({l['gym_km']} km)" if l.get("gym") else None,
         "public_transport_mins": l.get("pt"), "photos": len(l.get("images") or []),
         "description": l.get("summary", ""), "source": l.get("source") or "Zoopla",
     }
@@ -98,8 +104,9 @@ SYSTEM = f"""You help one person find a flat to rent in London for themselves.
 Their preferences, in order: one bedroom (two is acceptable but less ideal); rent
 under £{BUDGET} a month, and the cheaper the better; a balcony, terrace or garden;
 quick public transport to Waterloo and St Thomas' Hospital, and reasonable access
-to King's Cross and Liverpool Street; close to a station; a place that looks good
-and well kept in its description; a decent EPC rating.
+to King's Cross and Liverpool Street; close to a station; a gym in the building or
+one nearby; bills included is a plus; a place that looks good and well kept in its
+description; a decent floor area; a decent EPC rating.
 
 You will get a JSON list of newly listed homes with their facts. Pick the
 {TOP_N} best fits and order them best first. For each, write "why" as two or three
@@ -143,8 +150,14 @@ def render(picks: list[dict], by_id: dict, intro: str, total_new: int) -> str:
             continue
         img = (l.get("images") or [""])[0]
         outdoor = ", ".join(l.get("outdoor") or []) or "no outdoor space"
-        station = (f"{int(l['station_km'] * 1000)} m to {l['station']}" if l.get("station_km") is not None
-                   and l["station_km"] < 1 else f"{l.get('station_km')} km to {l.get('station')}") if l.get("station") else ""
+        station = ""
+        if l.get("station"):
+            walk = round(l["station_km"] * 1.35 / 4.8 * 60) if l.get("station_km") is not None else None
+            lines = f" ({', '.join(l['station_lines'])})" if l.get("station_lines") else ""
+            station = f"{l['station']}{lines}" + (f" · {walk} min walk" if walk is not None else "")
+        gym = "in the building" if l.get("gym_in_building") else (f"{l['gym']}, {l['gym_km']} km" if l.get("gym") else "—")
+        extras = " · ".join(x for x in [f"{round(l['sqft'] / 10.764)} m²" if l.get("sqft") else "",
+                                        "bills included" if l.get("bills_included") else ""] if x)
         move = l.get("available") or ("move-in date unknown" if l.get("date_unknown") else "available now")
         cards.append(f"""
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4d8c4;border-radius:12px;margin:0 0 18px;background:#fffaf2;">
@@ -157,6 +170,8 @@ def render(picks: list[dict], by_id: dict, intro: str, total_new: int) -> str:
     <tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Outdoor</td><td>{outdoor}</td></tr>
     <tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Station</td><td>{station or '—'}</td></tr>
     <tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Public transport</td><td>{travel_cell(l)}</td></tr>
+    <tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Gym</td><td>{gym}</td></tr>
+    {f'<tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Also</td><td>{extras}</td></tr>' if extras else ''}
     <tr><td style="padding:2px 14px 2px 0;color:#7a6f5e;">Zone / EPC</td><td>zone {l.get('zone')}{' · EPC ' + l['epc'] if l.get('epc') else ''}{' · ' + l['furnished'] if l.get('furnished') else ''}</td></tr>
   </table>
   <p style="margin:10px 0 4px;">{p['why']}</p>
