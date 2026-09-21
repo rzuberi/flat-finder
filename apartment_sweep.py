@@ -41,6 +41,7 @@ ZONE_RADII_KM = CFG.get("zones")                 # radii for zones 1..n, or None
 AREAS = {k: tuple(v) for k, v in (CFG.get("areas") or {}).items()}
 MAX_KM = CFG.get("max_km")
 RETENTION_DAYS = CFG.get("retention_days", 21)
+PETS = bool(CFG.get("pets"))                     # collect and show the pets policy
 # Zoopla caps pagination around 1000 results; bands above this get split.
 BAND_CAP = 900
 MIN_BAND_WIDTH = 50
@@ -292,6 +293,8 @@ def main() -> None:
     else:
         tag_ids = {}
         for label, param in TAG_SEARCHES.items():
+            if label == "pets" and not PETS:
+                continue
             time.sleep(REQUEST_DELAY + random.uniform(0, 1.5))
             try:
                 ids = set()
@@ -329,7 +332,7 @@ def main() -> None:
             outdoor = ["mentioned in description"]
         furnished = ("furnished" if lid in tag_ids.get("furnished", ())
                      else "unfurnished" if lid in tag_ids.get("unfurnished", ()) else None)
-        pets = "yes" if lid in tag_ids.get("pets", ()) else pets_from_text(text_blob)
+        pets = ("yes" if lid in tag_ids.get("pets", ()) else pets_from_text(text_blob)) if PETS else None
         feats = {f.get("iconId"): f.get("content") for f in lst.get("features", [])}
         images = [f"https://lid.zoocdn.com/645/430/{h}" for h in (lst.get("gallery") or [])[:3]]
         if not images and (lst.get("image") or {}).get("src"):
@@ -479,8 +482,10 @@ def main() -> None:
     for m in matches:
         if epc.get(m["id"]):
             m["epc"] = epc[m["id"]]
-        if not m.get("pets") and pets_cache.get(m["id"]):
+        if PETS and not m.get("pets") and pets_cache.get(m["id"]):
             m["pets"] = pets_cache[m["id"]]
+        if not PETS:
+            m.pop("pets", None)
 
     # real public-transport times via TfL journey planner, budgeted per run
     if CFG.get("pt_provider") == "tfl":
@@ -506,6 +511,7 @@ def main() -> None:
             "destinations": CFG["destinations"], "modes": CFG["modes"],
             "people": CFG["people"],
             "beds_options": CFG["beds_options"], "beds_default": CFG["beds_default"],
+            "pets": PETS,
         },
         "listings": sorted(matches, key=lambda m: m["num"]),
     }, indent=1))

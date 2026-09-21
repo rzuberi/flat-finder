@@ -369,6 +369,7 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
   $("#to").value = end;
   // these controls only appear once the data actually carries the fields
   $("#furnished").hidden = !data.listings.some((l) => l.furnished);
+  $("#fPets").parentElement.hidden = !data.criteria.pets;
   $("#epcMin").hidden = !data.listings.some((l) => l.epc);
   render();
   if (sb) setInterval(async () => { await loadLikes(); render(true); }, 60_000);
