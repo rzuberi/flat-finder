@@ -1,4 +1,4 @@
-# Apartment sweep — 2026-09-20
+# Apartment sweep — 2026-09-21
 
 London Flat Finder: ≤ £4000 pcm, available 2026-09-25 to 2026-11-30.
 **14635 matches** (0 new since last run).
