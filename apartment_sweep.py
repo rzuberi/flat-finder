@@ -189,13 +189,16 @@ def extract_pets(listing_id: str, html: str | None) -> str | None:
     if not html:
         return None
     if listing_id.startswith("or"):
-        m = re.search(r"Pets Allowed\s*</td>\s*<td[^>]*>(.*?)</td>", html, re.S)
-        if m:
-            cell = m.group(1).lower()
-            if "text-success" in cell or "check" in cell or ">yes" in cell:
-                return "yes"
-            if "text-danger" in cell or "text-muted" in cell or "times" in cell or "cross" in cell or ">no" in cell:
-                return "no"
+        # the label cell may carry an info popover; the value cell is an icon
+        m = re.search(r"Pets Allowed.*?</td>\s*<td[^>]*>(.*?)</td>", html, re.S)
+        if not m:
+            return None
+        cell = m.group(1).lower()
+        if "text-success" in cell or "check" in cell or ">yes" in cell:
+            return "yes"
+        if "text-danger" in cell or "text-muted" in cell or "times" in cell or "cross" in cell or ">no" in cell:
+            return "no"
+        return None        # never fall back to page text: OpenRent pages carry pets boilerplate
     return pets_from_text(html)
 
 
