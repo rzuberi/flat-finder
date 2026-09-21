@@ -151,6 +151,7 @@ function visibleListings() {
   const wantBalcony = $("#fBalcony").checked;
   const wantGarden = $("#fGarden").checked;
   const wantLiving = $("#fLiving").checked;
+  const wantPets = $("#fPets").checked;
   const ttDest = $("#ttDest").value;
   const ttMax = +$("#ttMax").value;
   const ttMode = $("#ttMode").value;
@@ -170,6 +171,7 @@ function visibleListings() {
       (wantGarden && l.outdoor.includes("garden")));
   }
   if (wantLiving) ls = ls.filter((l) => l.receptions >= 1);
+  if (wantPets) ls = ls.filter((l) => l.pets === "yes");
   ls = ls.filter((l) => zones.has(c.areas ? l.area : String(l.zone)));
   if (stationMax !== "any") ls = ls.filter((l) => l.station_km != null && l.station_km <= +stationMax);
   if (epcMin !== "any") ls = ls.filter((l) => l.epc && EPC_ORDER[l.epc] <= EPC_ORDER[epcMin]);
@@ -246,6 +248,7 @@ function card(l) {
         ${l.source ? `<span class="badge src">${l.source}</span>` : ""}
         ${l.outdoor.map((o) => `<span class="badge">🌿 ${o}</span>`).join("")}
         ${l.furnished ? `<span class="badge">${l.furnished}</span>` : ""}
+        ${l.pets === "yes" ? `<span class="badge pets">🐾 pets allowed</span>` : l.pets === "no" ? `<span class="badge nopets">no pets</span>` : ""}
         ${l.epc ? `<span class="badge">EPC ${l.epc}</span>` : ""}
       </span>
       ${liked?.size ? `<span class="hearts-by">❤️ ${[...liked].join(" & ")}</span>` : ""}
@@ -346,7 +349,7 @@ document.querySelectorAll("#tabs .tab").forEach((b) =>
   await loadLikes();
 
   ["from", "to", "pmin", "pmax", "beds", "furnished", "fBalcony", "fGarden",
-   "fLiving", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
+   "fLiving", "fPets", "stationMax", "sort", "ttDest", "ttMode", "ttMax", "showTT",
    "availOnly", "epcMin", "likedBy"].forEach((id) =>
     $("#" + id).addEventListener("change", render),
   );

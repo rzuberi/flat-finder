@@ -43,6 +43,11 @@ def _get(url: str) -> str | None:
     raise RuntimeError(f"{last} for {url}")
 
 
+def _pets(text: str) -> str | None:
+    from apartment_sweep import pets_from_text
+    return pets_from_text(text)
+
+
 # ---- Rightmove ---------------------------------------------------------------
 
 def _rm_page(base: str, pmin: int, pmax: int, index: int) -> tuple[list[dict], int]:
@@ -129,6 +134,7 @@ def collect_rightmove(max_price: int, region: str = "REGION^87490",
             "date_unknown": avail is None,
             "outdoor": outdoor,
             "furnished": None,
+            "pets": _pets(text),
             "published": (p.get("firstVisibleDate") or "")[:10],
             "url": "https://www.rightmove.co.uk" + p.get("propertyUrl", ""),
             "summary": (p.get("summary") or "")[:180],
@@ -215,6 +221,7 @@ def collect_openrent(max_price: int, slug: str = "london", min_beds: int | None 
                 "outdoor": outdoor,
                 "furnished": ("furnished" if "Furnished" in details
                               else "unfurnished" if "Unfurnished" in details else None),
+                "pets": _pets(desc),
                 "published": "",
                 "url": f"https://www.openrent.co.uk/{p['id']}",
                 "summary": desc[:180],

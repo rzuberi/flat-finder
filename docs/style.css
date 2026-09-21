@@ -112,3 +112,5 @@ input[type="number"] { width: 4.6rem; background: var(--card); color: var(--text
   color: var(--text); padding: .6rem 1.6rem; cursor: pointer; font-size: 1rem; }
 .badge.src { background: #2563eb22; color: var(--accent); font-weight: 600; }
 .zlink.also { font-weight: 400; font-size: .8rem; opacity: .85; }
+.badge.pets { background: #16a34a22; color: #15803d; font-weight: 600; }
+.badge.nopets { background: #dc262622; color: #b91c1c; }

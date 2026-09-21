@@ -49,7 +49,20 @@ TAG_SEARCHES = {
     "garden": "&feature=has_garden",
     "furnished": "&furnished_state=furnished",
     "unfurnished": "&furnished_state=unfurnished",
+    "pets": "&pets_allowed=true",
 }
+PETS_YES = re.compile(r"(?i)\bpets?\s+(are\s+)?(allowed|considered|welcome|friendly|negotiable|accepted|by arrangement|ok)\b|\bpet.friendly\b")
+PETS_NO = re.compile(r"(?i)\bno\s+pets\b|\bpets?\s+(are\s+)?not\s+(allowed|permitted|accepted)\b")
+
+
+def pets_from_text(text: str) -> str | None:
+    if not text:
+        return None
+    if PETS_NO.search(text):
+        return "no"
+    if PETS_YES.search(text):
+        return "yes"
+    return None
 OUTDOOR_TAGS = ("balcony/terrace", "garden")
 EXCLUDE_TAGS = {"House share", "Retirement"}
 OUTDOOR_WORDS = re.compile(r"\b(balcon|garden|terrace|patio|roof ?top)", re.I)
@@ -167,6 +180,22 @@ def parse_price_pcm(price_str: str, beds) -> float | None:
     if unit in ("pppm", "pppw"):
         val = val * (beds if isinstance(beds, int) and beds > 0 else 1)
     return round(val)
+
+
+def extract_pets(listing_id: str, html: str | None) -> str | None:
+    """Pets policy from a detail page: OpenRent has a table row, elsewhere it is
+    only ever stated in the description text."""
+    if not html:
+        return None
+    if listing_id.startswith("or"):
+        m = re.search(r"Pets Allowed\s*</td>\s*<td[^>]*>(.*?)</td>", html, re.S)
+        if m:
+            cell = m.group(1).lower()
+            if "text-success" in cell or "check" in cell or ">yes" in cell:
+                return "yes"
+            if "text-danger" in cell or "text-muted" in cell or "times" in cell or "cross" in cell or ">no" in cell:
+                return "no"
+    return pets_from_text(html)
 
 
 def extract_epc(listing_id: str, html: str | None) -> str:
@@ -300,6 +329,7 @@ def main() -> None:
             outdoor = ["mentioned in description"]
         furnished = ("furnished" if lid in tag_ids.get("furnished", ())
                      else "unfurnished" if lid in tag_ids.get("unfurnished", ()) else None)
+        pets = "yes" if lid in tag_ids.get("pets", ()) else pets_from_text(text_blob)
         feats = {f.get("iconId"): f.get("content") for f in lst.get("features", [])}
         images = [f"https://lid.zoocdn.com/645/430/{h}" for h in (lst.get("gallery") or [])[:3]]
         if not images and (lst.get("image") or {}).get("src"):
@@ -327,6 +357,7 @@ def main() -> None:
             "in_window": in_window(avail),
             "outdoor": outdoor,
             "furnished": furnished,
+            "pets": pets,
             "published": lst.get("publishedOn", ""),
             "url": "https://www.zoopla.co.uk" + lst["listingUris"]["detail"],
             "summary": (lst.get("summaryDescription") or "")[:180],
@@ -429,6 +460,8 @@ def main() -> None:
     # EPC: rating lives on detail pages; fetch a budget per run, cache forever
     epc_file = STATE / "epc_cache.json"
     epc = json.loads(epc_file.read_text()) if epc_file.exists() else {}
+    pets_file = STATE / "pets_cache.json"
+    pets_cache = json.loads(pets_file.read_text()) if pets_file.exists() else {}
     if "--from-cache" not in sys.argv or "--epc" in sys.argv:
         todo = sorted((m for m in matches if m["id"] not in epc and not m.get("unavailable")),
                       key=lambda m: not m["in_window"])
@@ -439,11 +472,15 @@ def main() -> None:
             except RuntimeError:
                 break
             epc[m["id"]] = extract_epc(m["id"], html)
+            pets_cache[m["id"]] = extract_pets(m["id"], html) or ""
         epc_file.write_text(json.dumps(epc))
+        pets_file.write_text(json.dumps(pets_cache))
         log(f"EPC cache: {len(epc)} cached, {max(0, len(todo) - 250)} still missing")
     for m in matches:
         if epc.get(m["id"]):
             m["epc"] = epc[m["id"]]
+        if not m.get("pets") and pets_cache.get(m["id"]):
+            m["pets"] = pets_cache[m["id"]]
 
     # real public-transport times via TfL journey planner, budgeted per run
     if CFG.get("pt_provider") == "tfl":

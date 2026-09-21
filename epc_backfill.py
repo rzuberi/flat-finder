@@ -8,9 +8,11 @@ import re
 import time
 from pathlib import Path
 
-from apartment_sweep import SITE_DATA, STATE, extract_epc, fetch
+from apartment_sweep import SITE_DATA, STATE, extract_epc, extract_pets, fetch
 
 EPC_FILE = STATE / "epc_cache.json"
+PETS_FILE = STATE / "pets_cache.json"
+pets = json.loads(PETS_FILE.read_text()) if PETS_FILE.exists() else {}
 
 data = json.loads(SITE_DATA.read_text())
 epc = json.loads(EPC_FILE.read_text()) if EPC_FILE.exists() else {}
@@ -33,10 +35,13 @@ for l in todo:
             break
         continue
     epc[l["id"]] = extract_epc(l["id"], html)
+    pets[l["id"]] = extract_pets(l["id"], html) or ""
     done += 1
     if done % 25 == 0:
         EPC_FILE.write_text(json.dumps(epc))
+        PETS_FILE.write_text(json.dumps(pets))
         print(f"{done}/{len(todo)}", flush=True)
 
 EPC_FILE.write_text(json.dumps(epc))
+PETS_FILE.write_text(json.dumps(pets))
 print(f"backfill done: {done} fetched, cache now {len(epc)}", flush=True)
