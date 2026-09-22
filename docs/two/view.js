@@ -1,3 +1,6 @@
+// The London site lives at londonflat.xyz; the GitHub Pages copy just forwards there.
+if (location.hostname.endsWith("github.io")) location.replace("https://www.londonflat.xyz/two/");
+
 window.VIEW = {
   key: "london", title: "London Flat Finder — two bedrooms", emoji: "🏠",
   data: "../data.json",
